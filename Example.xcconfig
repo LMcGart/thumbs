@@ -1,0 +1,5 @@
+// Copy this file to Config.xcconfig (gitignored) and fill in real values.
+// Not referenced by the build yet — wired up in Phase 1 (Supabase).
+// $() splits the slashes so xcconfig doesn't read them as a comment.
+SUPABASE_URL = https:/$()/YOUR-PROJECT.supabase.co
+SUPABASE_ANON_KEY = YOUR-ANON-KEY

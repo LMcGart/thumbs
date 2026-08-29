@@ -1,0 +1,72 @@
+name: Thumbs
+
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "18.0"
+    macOS: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+
+packages:
+  Core:
+    path: Core
+
+targets:
+  Thumbs:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: Core
+        product: Detection
+      - package: Core
+        product: Rating
+      - package: Core
+        product: Places
+    settings:
+      base:
+        # PLACEHOLDER bundle ID — finalize before first TestFlight upload (see CLAUDE.md).
+        PRODUCT_BUNDLE_IDENTIFIER: com.CHANGEME.thumbs
+        TARGETED_DEVICE_FAMILY: "1"
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSPhotoLibraryUsageDescription: "We use the location and time on your photos to spot restaurants you've visited, so reviewing takes one tap. Nothing is uploaded until you choose to share it."
+        NSCalendarsWriteOnlyAccessUsageDescription: "We add a reminder to your calendar for the moment reservations open."
+
+  Spike:
+    type: tool
+    platform: macOS
+    sources:
+      - Spike
+    dependencies:
+      - package: Core
+        product: Detection
+      - package: Core
+        product: Places
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.CHANGEME.thumbs.spike
+        # A CLI tool has no bundle, so the Info.plist must be embedded in the
+        # binary or the Photos permission prompt will not appear (see CLAUDE.md).
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+    info:
+      path: Spike/Info.plist
+      properties:
+        NSPhotoLibraryUsageDescription: "We use the location and time on your photos to spot restaurants you've visited, so reviewing takes one tap. Nothing is uploaded until you choose to share it."
+
+schemes:
+  Thumbs:
+    build:
+      targets:
+        Thumbs: all
+  Spike:
+    build:
+      targets:
+        Spike: all
