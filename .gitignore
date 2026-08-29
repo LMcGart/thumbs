@@ -18,3 +18,4 @@ docs/private/
 
 # macOS
 .DS_Store
+supabase/seed.sql

@@ -14,6 +14,9 @@ settings:
 packages:
   Core:
     path: Core
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    majorVersion: 2.0.0
 
 targets:
   Thumbs:
@@ -21,12 +24,9 @@ targets:
     platform: iOS
     sources:
       - App
-      # Spike-only: the on-device detection experiment reads the local POI DB.
-      # Remove once places move server-side (item 5). Optional so a fresh clone
-      # still generates before scripts/build-places-db.sh has run.
-      - path: docs/private/places.sqlite
-        buildPhase: resources
-        optional: true
+    configFiles:
+      Debug: Config.xcconfig
+      Release: Config.xcconfig
     dependencies:
       - package: Core
         product: Detection
@@ -34,6 +34,8 @@ targets:
         product: Rating
       - package: Core
         product: Places
+      - package: Supabase
+        product: Supabase
     settings:
       base:
         # PLACEHOLDER bundle ID — finalize before first TestFlight upload (see CLAUDE.md).
@@ -43,6 +45,8 @@ targets:
       path: App/Info.plist
       properties:
         UILaunchScreen: {}
+        SupabaseURL: $(SUPABASE_URL)
+        SupabaseAnonKey: $(SUPABASE_ANON_KEY)
         NSPhotoLibraryUsageDescription: "We use the location and time on your photos to spot restaurants you've visited, so reviewing takes one tap. Nothing is uploaded until you choose to share it."
         NSCalendarsWriteOnlyAccessUsageDescription: "We add a reminder to your calendar for the moment reservations open."
 
