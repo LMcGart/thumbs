@@ -10,6 +10,7 @@ var windowDays = 365
 var dbPath = "docs/private/places.sqlite"
 var outPath = "docs/private/spike-report.md"
 var homeMinDays = 5
+var homeRadius = 150.0
 var matchRadius = 75.0
 var foodThreshold: Float = 0.3
 
@@ -25,10 +26,11 @@ while !arguments.isEmpty {
     case "--db": dbPath = value()
     case "--out": outPath = value()
     case "--home-days": homeMinDays = Int(value()) ?? homeMinDays
+    case "--home-radius": homeRadius = Double(value()) ?? homeRadius
     case "--radius": matchRadius = Double(value()) ?? matchRadius
     case "--food-threshold": foodThreshold = Float(value()) ?? foodThreshold
     default:
-        print("Usage: Spike [--days 365] [--db path] [--out path] [--home-days 5] [--radius 75] [--food-threshold 0.3]")
+        print("Usage: Spike [--days 365] [--db path] [--out path] [--home-days 5] [--home-radius 150] [--radius 75] [--food-threshold 0.3]")
         exit(64)
     }
 }
@@ -44,7 +46,7 @@ do {
     print("Photos: \(samples.count) in the last \(windowDays) days, \(located.count) with location")
 
     let clusters = clusterPhotos(samples)
-    let (kept, excluded) = partitionFrequentLocations(clusters, minDistinctDays: homeMinDays)
+    let (kept, excluded) = partitionFrequentLocations(clusters, minDistinctDays: homeMinDays, radiusMeters: homeRadius)
     print("Clusters: \(clusters.count) (\(excluded.count) excluded as frequent locations)")
 
     var visits: [DetectedVisit] = []

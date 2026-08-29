@@ -20,25 +20,32 @@ private func visit(name: String?, dayOffset: Int, photoCount: Int = 2, food: Boo
     return DetectedVisit(cluster: cluster, candidates: candidates, foodPhotoFound: food)
 }
 
-@Test func reportSortsRowsByDateAndShowsCandidates() {
-    let later = visit(name: "Via Carota", dayOffset: 10)
-    let earlier = visit(name: "Lupa", dayOffset: 2, alternatives: ["Minetta Tavern"])
-    let report = renderSpikeReport(visits: [later, earlier], excluded: [], windowDays: 365, generatedAt: Date(timeIntervalSinceReferenceDate: 0))
-    let lupaRow = report.range(of: "Lupa (10 m)")
-    let viaRow = report.range(of: "Via Carota (10 m)")
-    #expect(lupaRow != nil && viaRow != nil)
-    #expect(lupaRow!.lowerBound < viaRow!.lowerBound)
+@Test func reportGroupsRowsIntoProductSections() {
+    let shown = visit(name: "Via Carota", dayOffset: 10)                       // high
+    let asked = visit(name: "Lupa", dayOffset: 2, alternatives: ["Minetta Tavern"])  // ambiguous
+    let hidden = visit(name: nil, dayOffset: 5)                                // low
+    let report = renderSpikeReport(visits: [shown, asked, hidden], excluded: [], windowDays: 365, generatedAt: Date(timeIntervalSinceReferenceDate: 0))
+    #expect(report.contains("## Widget would show — 1"))
+    #expect(report.contains("## Widget would ask “X or Y?” — 1"))
+    #expect(report.contains("## Hidden — 1"))
+    let showSection = report.range(of: "## Widget would show")!
+    let askSection = report.range(of: "## Widget would ask")!
+    let viaRow = report.range(of: "Via Carota (10 m)")!
+    let lupaRow = report.range(of: "Lupa (10 m)")!
+    #expect(showSection.lowerBound < viaRow.lowerBound && viaRow.lowerBound < askSection.lowerBound)
+    #expect(askSection.lowerBound < lupaRow.lowerBound)
     #expect(report.contains("Minetta Tavern (25 m)"))
-    #expect(report.contains("| ambiguous |"))
-    #expect(report.contains("| high |"))
     #expect(report.contains("maps.apple.com"))
 }
 
-@Test func reportShowsDashForNoCandidatesAndCountsConfidence() {
-    let report = renderSpikeReport(visits: [visit(name: nil, dayOffset: 0)], excluded: [], windowDays: 90, generatedAt: Date(timeIntervalSinceReferenceDate: 0))
-    #expect(report.contains("| — | — | low |"))
+@Test func reportSortsWithinSectionAndDashesEmptyStates() {
+    let laterAsk = visit(name: "Via Carota", dayOffset: 10, alternatives: ["I Sodi"])
+    let earlierAsk = visit(name: "Lupa", dayOffset: 2, alternatives: ["Minetta Tavern"])
+    let report = renderSpikeReport(visits: [laterAsk, earlierAsk], excluded: [], windowDays: 90, generatedAt: Date(timeIntervalSinceReferenceDate: 0))
+    #expect(report.range(of: "Lupa (10 m)")!.lowerBound < report.range(of: "Via Carota (10 m)")!.lowerBound)
+    #expect(report.contains("## Widget would show — 0"))
+    #expect(report.contains("None."))
     #expect(report.contains("Window: last 90 days"))
-    #expect(report.contains("low 1"))
     #expect(!report.contains("Excluded frequent locations"))
 }
 

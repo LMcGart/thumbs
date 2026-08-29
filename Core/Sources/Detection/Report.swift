@@ -1,9 +1,10 @@
 import Foundation
 import Places
 
-/// Renders the spike report: every kept cluster sorted by date, then a summary
-/// of excluded frequent locations. The reader verifies rows from memory, so
-/// each row links to the centroid in Apple Maps.
+/// Renders the spike report grouped the way the product would behave:
+/// high → a widget card, ambiguous → an "X or Y?" question, low → never
+/// surfaced (listed for diagnostics only). Excluded frequent locations last.
+/// Each row links to the centroid in Apple Maps for verification.
 public func renderSpikeReport(
     visits: [DetectedVisit],
     excluded: [Cluster],
@@ -11,32 +12,35 @@ public func renderSpikeReport(
     generatedAt: Date
 ) -> String {
     let sorted = visits.sorted { $0.cluster.start < $1.cluster.start }
+    let high = sorted.filter { $0.confidence == .high }
+    let ambiguous = sorted.filter { $0.confidence == .ambiguous }
+    let low = sorted.filter { $0.confidence == .low }
+
     var lines: [String] = []
     lines.append("# Spike report — visit detection")
     lines.append("")
-    let counts = Dictionary(grouping: sorted, by: \.confidence).mapValues(\.count)
     lines.append(
-        "Window: last \(windowDays) days · Generated \(day(generatedAt)) · "
-        + "\(sorted.count) clusters (high \(counts[.high, default: 0]) · ambiguous \(counts[.ambiguous, default: 0]) · "
-        + "low \(counts[.low, default: 0])) · \(excluded.count) excluded as frequent locations"
+        "Window: last \(windowDays) days · Generated \(day(generatedAt)) · \(sorted.count) clusters "
+        + "· \(excluded.count) excluded as frequent locations"
     )
     lines.append("")
-    lines.append("| Date | Best candidate | Alternatives | Confidence | Photos | Food? | Map |")
-    lines.append("|---|---|---|---|---|---|---|")
-    for visit in sorted {
-        let best = visit.candidates.first.map(describe) ?? "—"
-        let alternatives = visit.candidates.dropFirst()
-        var alternativesText = alternatives.prefix(3).map(describe).joined(separator: " · ")
-        if alternatives.count > 3 { alternativesText += " · +\(alternatives.count - 3) more" }
-        if alternativesText.isEmpty { alternativesText = "—" }
-        lines.append(
-            "| \(dateTime(visit.cluster.start)) | \(best) | \(alternativesText) "
-            + "| \(visit.confidence.rawValue) | \(visit.cluster.photos.count) | \(visit.foodPhotoFound ? "yes" : "no") "
-            + "| \(mapLink(visit.cluster.centroid)) |"
-        )
-    }
+    lines.append("## Widget would show — \(high.count)")
+    lines.append("")
+    lines.append("One card per row: “Looks like you ate at ___ — rate it?”")
+    lines.append("")
+    lines.append(contentsOf: section(high))
+    lines.append("## Widget would ask “X or Y?” — \(ambiguous.count)")
+    lines.append("")
+    lines.append("Shown as a question with the candidates below; the app never guesses.")
+    lines.append("")
+    lines.append(contentsOf: section(ambiguous))
+    lines.append("## Hidden — \(low.count)")
+    lines.append("")
+    lines.append("Never surfaced in the app; listed here for spike diagnostics only.")
+    lines.append("")
+    lines.append(contentsOf: section(low))
+
     if !excluded.isEmpty {
-        lines.append("")
         lines.append("## Excluded frequent locations (home/work)")
         lines.append("")
         lines.append("| Location | Clusters | Days | First | Last | Map |")
@@ -44,13 +48,34 @@ public func renderSpikeReport(
         for group in groupExcluded(excluded) {
             lines.append(
                 "| \(coordinateText(group.centroid)) | \(group.clusters.count) | \(group.dayCount) "
-                + "| \(day(group.first)) | \(day(group.last)) "
-                + "| \(mapLink(group.centroid)) |"
+                + "| \(day(group.first)) | \(day(group.last)) | \(mapLink(group.centroid)) |"
             )
         }
+        lines.append("")
+    }
+    return lines.joined(separator: "\n")
+}
+
+private func section(_ visits: [DetectedVisit]) -> [String] {
+    guard !visits.isEmpty else { return ["None.", ""] }
+    var lines = [
+        "| Date | Best candidate | Alternatives | Photos | Food? | Map |",
+        "|---|---|---|---|---|---|",
+    ]
+    for visit in visits {
+        let best = visit.candidates.first.map(describe) ?? "—"
+        let alternatives = visit.candidates.dropFirst()
+        var alternativesText = alternatives.prefix(3).map(describe).joined(separator: " · ")
+        if alternatives.count > 3 { alternativesText += " · +\(alternatives.count - 3) more" }
+        if alternativesText.isEmpty { alternativesText = "—" }
+        lines.append(
+            "| \(dateTime(visit.cluster.start)) | \(best) | \(alternativesText) "
+            + "| \(visit.cluster.photos.count) | \(visit.foodPhotoFound ? "yes" : "no") "
+            + "| \(mapLink(visit.cluster.centroid)) |"
+        )
     }
     lines.append("")
-    return lines.joined(separator: "\n")
+    return lines
 }
 
 private func describe(_ candidate: NearbyPlace) -> String {
@@ -74,12 +99,12 @@ private struct ExcludedGroup {
     var last: Date { clusters.map(\.start).max()! }
 }
 
-/// Excluded clusters are mostly hundreds of rows at two spots; collapse to one
-/// row per ~75 m location so the section stays readable.
+/// Excluded clusters are mostly hundreds of rows at a few spots; collapse to
+/// one row per location so the section stays readable.
 private func groupExcluded(_ excluded: [Cluster]) -> [ExcludedGroup] {
     var groups: [ExcludedGroup] = []
     for cluster in excluded {
-        if let index = groups.firstIndex(where: { $0.centroid.distance(to: cluster.centroid) <= 75 }) {
+        if let index = groups.firstIndex(where: { $0.centroid.distance(to: cluster.centroid) <= 150 }) {
             groups[index].clusters.append(cluster)
         } else {
             groups.append(ExcludedGroup(clusters: [cluster]))
