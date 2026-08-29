@@ -53,7 +53,7 @@ do {
     var widths: [Int] = []
     var samplesLogged = 0
     for (index, cluster) in kept.enumerated() {
-        let candidates = try store.places(near: cluster.centroid, withinMeters: matchRadius)
+        let candidates = rankCandidates(try store.places(near: cluster.centroid, withinMeters: matchRadius))
         // One photo per cluster; the middle one is most likely mid-meal.
         let middlePhoto = cluster.photos[cluster.photos.count / 2]
         var isFood = false

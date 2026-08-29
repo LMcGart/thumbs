@@ -17,12 +17,16 @@ public struct DetectedVisit: Sendable {
     /// Detection spec: single candidate + ≥2 photos + a food photo = high;
     /// multiple candidates = ambiguous (surface as "X or Y?", never guess);
     /// otherwise low (do not surface). Precision over recall.
+    /// Gate 3a addition: ambiguous also needs evidence of a meal — a
+    /// single-photo cluster with no food signal (a candle, a receipt) is
+    /// never surfaced, however many places are nearby.
     public init(cluster: Cluster, candidates: [NearbyPlace], foodPhotoFound: Bool) {
         self.cluster = cluster
         self.candidates = candidates
         self.foodPhotoFound = foodPhotoFound
+        let hasMealEvidence = cluster.photos.count >= 2 || foodPhotoFound
         if candidates.count > 1 {
-            self.confidence = .ambiguous
+            self.confidence = hasMealEvidence ? .ambiguous : .low
         } else if candidates.count == 1, cluster.photos.count >= 2, foodPhotoFound {
             self.confidence = .high
         } else {

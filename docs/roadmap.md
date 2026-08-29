@@ -17,10 +17,12 @@ Everything here is v1 as defined in `CLAUDE.md`. If something seems missing, it'
 - [x] **3. Spike.** Three parts. (a) POI load: script or Swift code that uses DuckDB against Overture's S3 release to pull the US eat-and-drink subset (see CLAUDE.md Places data), writes `docs/private/places.sqlite` with name, lat, lon, category, subtype, GERS id, and an R-tree or grid index. (b) Photo read: PhotoKit fetch of assets in the last 365 days with date + location, on macOS. (c) Pipeline: cluster → match candidates within 75 m → Vision food check on one photo per cluster → confidence → home/work exclusion → `docs/private/spike-report.md`.
   *Done when:* the report lists every cluster with date, best candidate, alternatives, confidence, photo count, sorted by date, and the run completes in under 5 minutes.
 
-- [ ] **GATE 3a. Read the report.** You mark each row right / wrong / missed-visit-not-shown. Decide: does detection surface enough correct visits with few enough wrong ones to be the primary entry point, or is it a bonus and search is the product? Note threshold adjustments.
+- [x] **GATE 3a. Read the report.** You mark each row right / wrong / missed-visit-not-shown. Decide: does detection surface enough correct visits with few enough wrong ones to be the primary entry point, or is it a bonus and search is the product? Note threshold adjustments.
+  *Decision (2026-08-29):* detection is a **bonus; search is the product**. Findings: dense NYC often ranks the wrong candidate first; single-photo non-meal clusters (a candle) surfaced as ambiguous. Adjustments for 3b: evidence gate on ambiguous, name dedupe, median centroid, Overture-confidence tiebreak.
 
-- [ ] **3b. Tune.** Apply the threshold and heuristic changes from the gate. Re-run. Record the before/after in the report.
+- [x] **3b. Tune.** Apply the threshold and heuristic changes from the gate. Re-run. Record the before/after in the report.
   *Done when:* you're satisfied with precision on your own library.
+  *Result (2026-08-29):* ambiguous 226 → 143, candle-type false positives demoted to low, name-duplicates collapsed, high steady at 4 (capped by iCloud 64px thumbnails — revisit on-device in item 9).
 
 ## Phase 1 — Backend
 

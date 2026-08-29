@@ -17,14 +17,17 @@ public struct Place: Sendable, Hashable, Identifiable {
     public let coordinate: Coordinate
     public let category: PlaceCategory
     public let subtype: String?
+    /// Overture's own existence confidence (0...1); 0.5 when the source has none.
+    public let confidence: Double
 
-    public init(id: Int64, gersID: String, name: String, coordinate: Coordinate, category: PlaceCategory, subtype: String?) {
+    public init(id: Int64, gersID: String, name: String, coordinate: Coordinate, category: PlaceCategory, subtype: String?, confidence: Double = 0.5) {
         self.id = id
         self.gersID = gersID
         self.name = name
         self.coordinate = coordinate
         self.category = category
         self.subtype = subtype
+        self.confidence = confidence
     }
 }
 

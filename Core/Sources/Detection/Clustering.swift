@@ -60,10 +60,17 @@ public func clusterPhotos(
     }
 }
 
-/// Arithmetic mean of the coordinates — fine at visit scale (tens of meters).
+/// Component-wise median (gate 3a): one GPS-wild photo must not drag the
+/// centroid into the wrong storefront, which a mean allows.
 private func centroid(of coordinates: [Coordinate]) -> Coordinate {
     Coordinate(
-        latitude: coordinates.map(\.latitude).reduce(0, +) / Double(coordinates.count),
-        longitude: coordinates.map(\.longitude).reduce(0, +) / Double(coordinates.count)
+        latitude: median(coordinates.map(\.latitude)),
+        longitude: median(coordinates.map(\.longitude))
     )
+}
+
+private func median(_ values: [Double]) -> Double {
+    let sorted = values.sorted()
+    let middle = sorted.count / 2
+    return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
 }

@@ -20,7 +20,7 @@ public final class PlaceStore {
             throw PlaceStoreError(message: "Cannot open places DB at \(path): \(detail)")
         }
         let sql = """
-        SELECT rowid, gers_id, name, lat, lon, category, subtype
+        SELECT rowid, gers_id, name, lat, lon, category, subtype, confidence
         FROM places
         WHERE cell_lat BETWEEN ? AND ? AND cell_lon BETWEEN ? AND ?
         """
@@ -69,7 +69,9 @@ public final class PlaceStore {
                 name: text(column: 2) ?? "",
                 coordinate: coordinate,
                 category: text(column: 5).flatMap(PlaceCategory.init(rawValue:)) ?? .restaurant,
-                subtype: text(column: 6)
+                subtype: text(column: 6),
+                confidence: sqlite3_column_type(candidatesStatement, 7) == SQLITE_NULL
+                    ? 0.5 : sqlite3_column_double(candidatesStatement, 7)
             )
             results.append(NearbyPlace(place: place, distanceMeters: distance))
         }

@@ -84,6 +84,18 @@ private func sample(_ id: String, minutes: Double, location: Coordinate?) -> Pho
     #expect(clusters[0].centroid.distance(to: coord(east: 15)) < 1)
 }
 
+@Test func centroidIsRobustToOneWildGPSPoint() {
+    let clusters = clusterPhotos([
+        sample("a", minutes: 0, location: coord()),
+        sample("b", minutes: 5, location: coord(east: 2)),
+        sample("c", minutes: 10, location: coord(east: 4)),
+        sample("d", minutes: 15, location: coord(east: 40)),  // GPS outlier, still in-cluster
+    ])
+    #expect(clusters.count == 1)
+    // Median lands at 3 m east; a mean would be dragged to 11.5 m.
+    #expect(clusters[0].centroid.distance(to: coord(east: 3)) < 1)
+}
+
 @Test func emptyInputProducesNoClusters() {
     #expect(clusterPhotos([]).isEmpty)
 }

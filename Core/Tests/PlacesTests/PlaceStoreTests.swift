@@ -23,7 +23,7 @@ private func makeDB(rows: [(name: String, at: Coordinate, category: String)]) th
     defer { sqlite3_close(db) }
     let schema = """
     CREATE TABLE places (
-      gers_id TEXT, name TEXT, lat REAL, lon REAL,
+      gers_id TEXT, name TEXT, lat REAL, lon REAL, confidence REAL,
       category TEXT, subtype TEXT, cell_lat INTEGER, cell_lon INTEGER
     );
     CREATE INDEX idx_places_cell ON places(cell_lat, cell_lon);
@@ -32,7 +32,7 @@ private func makeDB(rows: [(name: String, at: Coordinate, category: String)]) th
     for (index, row) in rows.enumerated() {
         let sql = """
         INSERT INTO places VALUES (
-          'gers-\(index)', '\(row.name)', \(row.at.latitude), \(row.at.longitude),
+          'gers-\(index)', '\(row.name)', \(row.at.latitude), \(row.at.longitude), NULL,
           '\(row.category)', 'subtype-\(index)',
           \(PlaceGrid.cell(row.at.latitude)), \(PlaceGrid.cell(row.at.longitude))
         );
@@ -54,6 +54,7 @@ private func makeDB(rows: [(name: String, at: Coordinate, category: String)]) th
     #expect(results[0].distanceMeters < 15)
     #expect(results[0].place.category == .cafe)
     #expect(results[0].place.gersID == "gers-1")
+    #expect(results[0].place.confidence == 0.5)  // NULL column falls back to neutral
 }
 
 @Test func findsPlacesAcrossCellBoundaries() throws {

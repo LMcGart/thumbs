@@ -36,6 +36,7 @@ SELECT
   names."primary" AS name,
   bbox.ymin AS lat,
   bbox.xmin AS lon,
+  confidence,
   taxonomy.hierarchy[2] AS level2,
   taxonomy.hierarchy[3] AS level3,
   taxonomy."primary" AS subtype
@@ -56,7 +57,7 @@ ATTACH '${OUT}' AS out (TYPE SQLITE);
 -- PlaceGrid.cellDegrees in Core/Sources/Places/PlaceGrid.swift.
 CREATE TABLE out.places AS
 SELECT
-  gers_id, name, lat, lon,
+  gers_id, name, lat, lon, confidence,
   CASE
     WHEN level2 = 'alcoholic_beverage_venue' THEN 'bar'
     WHEN level2 = 'non_alcoholic_beverage_venue' THEN 'cafe'

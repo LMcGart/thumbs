@@ -46,6 +46,24 @@ private func candidate(_ name: String, distance: Double) -> NearbyPlace {
     #expect(visit.confidence == .ambiguous)
 }
 
+@Test func singlePhotoWithoutFoodIsLowEvenWithManyCandidates() {
+    let visit = DetectedVisit(
+        cluster: cluster(photoCount: 1),
+        candidates: [candidate("Lupa", distance: 20), candidate("Minetta Tavern", distance: 40)],
+        foodPhotoFound: false
+    )
+    #expect(visit.confidence == .low)
+}
+
+@Test func singlePhotoWithFoodAndManyCandidatesStaysAmbiguous() {
+    let visit = DetectedVisit(
+        cluster: cluster(photoCount: 1),
+        candidates: [candidate("Lupa", distance: 20), candidate("Minetta Tavern", distance: 40)],
+        foodPhotoFound: true
+    )
+    #expect(visit.confidence == .ambiguous)
+}
+
 @Test func noCandidatesIsLow() {
     let visit = DetectedVisit(cluster: cluster(photoCount: 5), candidates: [], foodPhotoFound: true)
     #expect(visit.confidence == .low)
