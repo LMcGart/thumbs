@@ -1,8 +1,12 @@
-import AppKit
 import CoreGraphics
 import Foundation
 import Photos
 import Vision
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Meal-scene identifiers from Vision's taxonomy; the score is the max over
 /// these. Tableware-family labels are included deliberately: on the small
@@ -15,14 +19,14 @@ private let foodIdentifiers: Set<String> = [
     "tableware", "utensil", "plate", "cup", "drinking_glass",
 ]
 
-enum FoodCheckResult {
+public enum FoodCheckResult: Sendable {
     case classified(foodScore: Float, width: Int, top: [String])
     case assetMissing
     case imageUnavailable(String)
     case visionFailed(String)
 }
 
-func checkFood(assetID: String) async -> FoodCheckResult {
+public func checkFood(assetID: String) async -> FoodCheckResult {
     guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetID], options: nil).firstObject else {
         return .assetMissing
     }
@@ -82,6 +86,13 @@ private func requestImage(_ asset: PHAsset, deliveryMode: PHImageRequestOptionsD
                 result = .failure("Photos returned no image; info: \(infoText)")
                 return
             }
+            #if canImport(UIKit)
+            if let cgImage = image.cgImage {
+                result = .success(cgImage)
+            } else {
+                result = .failure("UIImage not convertible to CGImage")
+            }
+            #else
             var rect = CGRect(origin: .zero, size: image.size)
             if let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) {
                 result = .success(cgImage)
@@ -90,6 +101,7 @@ private func requestImage(_ asset: PHAsset, deliveryMode: PHImageRequestOptionsD
             } else {
                 result = .failure("NSImage not convertible to CGImage")
             }
+            #endif
         }
         return result
     }.value

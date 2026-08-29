@@ -1,16 +1,15 @@
-import Detection
 import Foundation
 import Photos
 import Places
 
-/// Fetches image assets from the last `days` days as PhotoSamples.
-/// Screenshots are excluded at fetch; assets without location come through
-/// with a nil location and are dropped by clustering.
-func fetchPhotoSamples(days: Int) async throws -> [PhotoSample] {
+/// I/O adapter (not unit-tested): fetches image assets from the last `days`
+/// days as PhotoSamples. Screenshots are excluded at fetch; assets without
+/// location come through with a nil location and are dropped by clustering.
+public func fetchPhotoSamples(days: Int) async throws -> [PhotoSample] {
     // Photos offers no read-only level; .readWrite is the minimum that allows reading.
     let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
     guard status == .authorized || status == .limited else {
-        throw SpikeError("Photo library access not granted (status: \(status.rawValue)). Grant access and rerun.")
+        throw DetectionIOError("Photo library access not granted (status: \(status.rawValue)). Grant access and rerun.")
     }
 
     let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date())!
@@ -33,7 +32,7 @@ func fetchPhotoSamples(days: Int) async throws -> [PhotoSample] {
     return samples
 }
 
-struct SpikeError: Error, CustomStringConvertible {
-    let description: String
-    init(_ description: String) { self.description = description }
+public struct DetectionIOError: Error, CustomStringConvertible {
+    public let description: String
+    public init(_ description: String) { self.description = description }
 }

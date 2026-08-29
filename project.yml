@@ -21,6 +21,12 @@ targets:
     platform: iOS
     sources:
       - App
+      # Spike-only: the on-device detection experiment reads the local POI DB.
+      # Remove once places move server-side (item 5). Optional so a fresh clone
+      # still generates before scripts/build-places-db.sh has run.
+      - path: docs/private/places.sqlite
+        buildPhase: resources
+        optional: true
     dependencies:
       - package: Core
         product: Detection
