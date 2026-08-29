@@ -26,7 +26,7 @@ Everything here is v1 as defined in `CLAUDE.md`. If something seems missing, it'
 
 ## Phase 1 — Backend
 
-- [ ] **4. Supabase.** Add the Supabase Swift SDK (ask first). `supabase/migrations/` with: `profiles`, `friendships` (requested / accepted), `places` (our IDs + GERS id + MapKit id columns, PostGIS point, category, subtype), `visits` (user, place, date, source: detected / manual), `ratings` (visit, score 1–10, category at time of rating), `dish_ratings` (visit, dish name, must / good / skip), `photos` (visit, path, tier sizes), `drop_rules`, `reminders`. RLS: a user reads their own rows and rows of accepted friends; writes only their own. Seed script: NYC subset from `places.sqlite` into `places`. Config from `Config.xcconfig` (gitignored). Dev auth: anonymous sign-in.
+- [x] **4. Supabase.** Add the Supabase Swift SDK (ask first). `supabase/migrations/` with: `profiles`, `friendships` (requested / accepted), `places` (our IDs + GERS id + MapKit id columns, PostGIS point, category, subtype), `visits` (user, place, date, source: detected / manual), `ratings` (visit, score 1–10, category at time of rating), `dish_ratings` (visit, dish name, must / good / skip), `photos` (visit, path, tier sizes), `drop_rules`, `reminders`. RLS: a user reads their own rows and rows of accepted friends; writes only their own. Seed script: NYC subset from `places.sqlite` into `places`. Config from `Config.xcconfig` (gitignored). Dev auth: anonymous sign-in.
   *Done when:* migrations apply cleanly to a fresh project, the seed loads NYC, a signed-in simulator user can insert a rating and a second user can't read it until friended (tested with two anonymous users).
 
 ## Phase 2 — Core loop
