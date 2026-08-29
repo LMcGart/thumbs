@@ -1,4 +1,5 @@
 import Foundation
+import Places
 import Testing
 @testable import Detection
 
