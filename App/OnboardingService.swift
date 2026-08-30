@@ -35,8 +35,9 @@ enum OnboardingService {
 
     /// The user's last `limit` distinct places from photo metadata: cluster,
     /// drop frequent locations (home/work), walk most-recent-first, match
-    /// against the server places table. No food check — every card is
-    /// confirmed or skipped by hand. Returns [] when access is declined or
+    /// against the server places table, and require a meal signal (Vision on
+    /// up to two photos, full-res on device) so a dog photographed near a
+    /// cafe doesn't become a card. Returns [] when access is declined or
     /// nothing matches.
     @MainActor
     static func recentPlaces(limit: Int = 10, lookbackDays: Int = 180) async -> [DetectedPlace] {
@@ -75,6 +76,7 @@ enum OnboardingService {
                 )
             }
             guard let top = summaries.first, !seenPlaces.contains(top.place.id) else { continue }
+            guard await looksLikeMeal(cluster) else { continue }
             seenPlaces.insert(top.place.id)
             results.append(DetectedPlace(
                 id: UUID(),
@@ -84,5 +86,18 @@ enum OnboardingService {
             ))
         }
         return results
+    }
+
+    /// Meal signal on the middle photo, falling back to the first — the same
+    /// classifier and 0.3 threshold the spike tuned.
+    private static func looksLikeMeal(_ cluster: Cluster) async -> Bool {
+        var tried: Set<String> = []
+        for photo in [cluster.photos[cluster.photos.count / 2], cluster.photos[0]] {
+            guard tried.insert(photo.id).inserted else { continue }
+            if case .classified(let score, _, _) = await checkFood(assetID: photo.id), score >= 0.3 {
+                return true
+            }
+        }
+        return false
     }
 }
