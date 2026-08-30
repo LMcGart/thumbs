@@ -105,6 +105,31 @@ enum FeedService {
         try await Supa.client.from("comments").delete().eq("id", value: id).execute()
     }
 
+    /// One place as a PlaceSummary, for navigating from a review to its
+    /// restaurant page.
+    static func place(id: Int64) async throws -> PlaceSummary {
+        struct Row: Decodable {
+            let id: Int64
+            let name: String
+            let category: String
+            let subtype: String?
+            let address: String?
+            let lat: Double
+            let lon: Double
+        }
+        let row: Row = try await Supa.client.from("places")
+            .select("id, name, category, subtype, address, lat, lon")
+            .eq("id", value: Int(id))
+            .single().execute().value
+        return PlaceSummary(
+            id: row.id, name: row.name,
+            category: PlaceCategory(rawValue: row.category) ?? .restaurant,
+            subtype: row.subtype, address: row.address,
+            coordinate: Coordinate(latitude: row.lat, longitude: row.lon),
+            distanceMeters: nil
+        )
+    }
+
     /// Dishes on one visit, for the detail view.
     static func dishes(visitID: UUID) async throws -> [(name: String, verdict: String)] {
         struct Row: Decodable { let dish_name: String; let verdict: String }

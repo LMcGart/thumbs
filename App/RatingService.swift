@@ -68,6 +68,19 @@ enum RatingService {
         return try await ensureVisit(placeID: placeID, visitedAt: visitedAt)
     }
 
+    /// The latest visit row at the place, if any, with its date.
+    static func latestVisit(placeID: Int64) async throws -> (id: UUID, visitedAt: Date)? {
+        let uid = try await Supa.signInIfNeeded()
+        struct Row: Decodable { let id: UUID; let visited_at: Date }
+        let rows: [Row] = try await Supa.client.from("visits")
+            .select("id, visited_at")
+            .eq("place_id", value: Int(placeID))
+            .eq("user_id", value: uid)
+            .order("visited_at", ascending: false)
+            .limit(1).execute().value
+        return rows.first.map { ($0.id, $0.visited_at) }
+    }
+
     /// The latest activity-log visit at the place, created if none exists —
     /// the anchor photos and dishes attach to.
     static func ensureVisit(placeID: Int64, visitedAt: Date = Date()) async throws -> UUID {
@@ -119,7 +132,7 @@ enum RatingService {
         }
     }
 
-    struct ReviewedPlace: Identifiable, Sendable {
+    struct ReviewedPlace: Identifiable, Hashable, Sendable {
         let place: PlaceSummary
         let score: Int
         var id: Int64 { place.id }

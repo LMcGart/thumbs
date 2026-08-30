@@ -91,6 +91,7 @@ private struct FeedEntryRow: View {
 
 struct VisitDetailView: View {
     let entry: FeedService.Entry
+    @State private var place: Places.PlaceSummary?
     @State private var dishes: [(name: String, verdict: String)] = []
     @State private var comments: [FeedService.Comment] = []
     @State private var draft = ""
@@ -99,6 +100,13 @@ struct VisitDetailView: View {
     var body: some View {
         List {
             Section {
+                if let place {
+                    NavigationLink(value: place) {
+                        Text(entry.placeName).font(.headline)
+                    }
+                } else {
+                    Text(entry.placeName).font(.headline)
+                }
                 HStack {
                     AvatarView(path: entry.user.avatar_path)
                     Text(entry.user.shownName).font(.subheadline.bold())
@@ -155,6 +163,7 @@ struct VisitDetailView: View {
         .navigationTitle(entry.placeName)
         .task {
             myID = try? await Supa.signInIfNeeded()
+            place = try? await FeedService.place(id: entry.placeID)
             dishes = (try? await FeedService.dishes(visitID: entry.id)) ?? []
             comments = (try? await FeedService.comments(visitID: entry.id)) ?? []
         }

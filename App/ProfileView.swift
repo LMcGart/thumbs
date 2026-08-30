@@ -39,7 +39,7 @@ struct ProfileView: View {
                         Text("Nothing rated yet").foregroundStyle(.secondary)
                     }
                     ForEach(reviews) { review in
-                        NavigationLink(value: review.place) {
+                        NavigationLink(value: review) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 1) {
                                     Text(review.place.name)
@@ -86,6 +86,7 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationDestination(for: PlaceSummary.self) { RestaurantView(place: $0) }
+            .navigationDestination(for: RatingService.ReviewedPlace.self) { MyReviewView(review: $0) }
         }
         .task { await reload() }
         .onChange(of: avatarItem) {
@@ -99,6 +100,8 @@ struct ProfileView: View {
             }
         }
     }
+
+    // (own-review loader lives below the view)
 
     private func reload() async {
         profile = try? await SocialService.myProfile()
@@ -142,5 +145,39 @@ struct ProfileView: View {
     private func accept(_ requester: SocialService.Profile) async {
         try? await SocialService.accept(requester: requester.id)
         await reload()
+    }
+}
+
+
+/// The user's own review, shown through the same view friends see — where
+/// comments live — with the place name linking on to the restaurant page.
+struct MyReviewView: View {
+    let review: RatingService.ReviewedPlace
+    @State private var entry: FeedService.Entry?
+
+    var body: some View {
+        Group {
+            if let entry {
+                VisitDetailView(entry: entry)
+            } else {
+                ProgressView()
+            }
+        }
+        .task {
+            guard let profile = try? await SocialService.myProfile(),
+                  let visit = try? await RatingService.latestVisit(placeID: review.place.id)
+            else { return }
+            let photos = (try? await PhotoService.visitPhotos(visitID: visit.id)) ?? []
+            entry = FeedService.Entry(
+                id: visit.id,
+                user: profile,
+                placeID: review.place.id,
+                placeName: review.place.name,
+                category: review.place.category,
+                visitedAt: visit.visitedAt,
+                score: review.score,
+                photos: photos
+            )
+        }
     }
 }
