@@ -14,8 +14,6 @@ final class SearchModel {
     // NYC bias per the item 5 spec; becomes the user's location when the app
     // gains location permission in a later item.
     private let bias = Coordinate(latitude: 40.7291, longitude: -73.9965)
-    /// Below this many server rows, Apple results blend into the list.
-    private let thinThreshold = 5
 
     private struct SearchParams: Encodable {
         let query: String
@@ -41,6 +39,9 @@ final class SearchModel {
         defer { searching = false }
         do {
             _ = try await Supa.signInIfNeeded()
+            // Both suppliers race in parallel on every query: Apple for the
+            // finding, our rows for the knowing; the blend dedupes.
+            async let appleResults = appleSearch(query)
             let rows: [ServerRow] = try await Supa.client
                 .rpc("search_places", params: SearchParams(query: query, near_lat: bias.latitude, near_lon: bias.longitude))
                 .execute().value
@@ -53,7 +54,7 @@ final class SearchModel {
                     distanceMeters: row.distance_meters
                 )
             }
-            let apple = server.count < thinThreshold ? await appleSearch(query) : []
+            let apple = await appleResults
             guard !Task.isCancelled else { return }
             hits = blendSearchResults(server: server, apple: apple)
             errorMessage = nil
