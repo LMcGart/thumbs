@@ -15,6 +15,7 @@ struct RatingFlowView: View {
     @State private var ratedPlaces: [RatedPlace] = []
     @State private var shown: BandMates?
     @State private var savedVisitID: UUID?
+    @State private var saveTask: Task<Void, Never>?
     @State private var errorMessage: String?
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var photoStatus: String?
@@ -49,7 +50,7 @@ struct RatingFlowView: View {
                 RatingSliderView(
                     selected: $selected,
                     histogram: ratingHistogram(category: category, from: ratedPlaces),
-                    onCommit: { score in Task { await save(score) } }
+                    onCommit: { score in saveTask = Task { await save(score) } }
                 )
                 .padding(.horizontal, 4)
 
@@ -210,6 +211,9 @@ struct RatingFlowView: View {
     }
 
     private func cancelOut() async {
+        // A commit fired by the same gesture may still be in flight; settle it
+        // first so the undo decision sees the true state.
+        await saveTask?.value
         do {
             if let preset {
                 if savedVisitID != nil, selected != preset.score || category != preset.category {
