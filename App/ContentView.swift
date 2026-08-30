@@ -2,9 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        // PLACEHOLDER home: dev screens until Search (item 5) gives the app a
-        // real home.
         TabView {
+            SearchHomeView()
+                .tabItem { Label("Home", systemImage: "magnifyingglass") }
+            // Dev-only tabs below; removed before TestFlight (item 12).
             DetectionDebugView()
                 .tabItem { Label("Detection", systemImage: "camera.metering.spot") }
             SupabaseDebugView()
