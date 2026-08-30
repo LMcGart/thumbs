@@ -2,6 +2,10 @@
 # Generates supabase/seed.sql: the NYC subset of docs/private/places.sqlite as
 # idempotent INSERTs into public.places (WKT for the geography column).
 # Apply with: supabase db push --include-seed   (after supabase link)
+# Gotcha: push only executes the seed on FIRST apply; after that it just
+# re-tracks the file hash. To load newly added rows into a live DB, insert the
+# delta via the REST API (ignore-duplicates upsert on gers_id) — see the
+# session notes from 2026-08-29 — or wait for the planned upsert refresh script.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
