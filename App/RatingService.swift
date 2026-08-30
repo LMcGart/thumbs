@@ -119,6 +119,51 @@ enum RatingService {
         }
     }
 
+    struct ReviewedPlace: Identifiable, Sendable {
+        let place: PlaceSummary
+        let score: Int
+        var id: Int64 { place.id }
+    }
+
+    /// Everything the user has rated, best score first, for the profile list.
+    static func myReviews() async throws -> [ReviewedPlace] {
+        let uid = try await Supa.signInIfNeeded()
+        struct Row: Decodable {
+            struct PlaceJoin: Decodable {
+                let id: Int64
+                let name: String
+                let category: String
+                let subtype: String?
+                let address: String?
+                let lat: Double
+                let lon: Double
+            }
+            let score: Int
+            let updated_at: Date
+            let places: PlaceJoin
+        }
+        let rows: [Row] = try await Supa.client.from("ratings")
+            .select("score, updated_at, places(id, name, category, subtype, address, lat, lon)")
+            .eq("user_id", value: uid)
+            .execute().value
+        return rows.sorted {
+            $0.score != $1.score ? $0.score > $1.score : $0.updated_at > $1.updated_at
+        }.map { row in
+            ReviewedPlace(
+                place: PlaceSummary(
+                    id: row.places.id,
+                    name: row.places.name,
+                    category: PlaceCategory(rawValue: row.places.category) ?? .restaurant,
+                    subtype: row.places.subtype,
+                    address: row.places.address,
+                    coordinate: Coordinate(latitude: row.places.lat, longitude: row.places.lon),
+                    distanceMeters: nil
+                ),
+                score: row.score
+            )
+        }
+    }
+
     struct MyRating {
         let score: Int
         let category: PlaceCategory

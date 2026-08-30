@@ -1,3 +1,4 @@
+import Places
 import PhotosUI
 import SwiftUI
 
@@ -9,6 +10,7 @@ struct ProfileView: View {
     @State private var friendHandle = ""
     @State private var incoming: [SocialService.Profile] = []
     @State private var friends: [SocialService.Profile] = []
+    @State private var reviews: [RatingService.ReviewedPlace] = []
     @State private var status: String?
 
     var body: some View {
@@ -30,6 +32,24 @@ struct ProfileView: View {
                     Button("Save") { Task { await saveProfile() } }
                     if let status {
                         Text(status).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                Section("Your reviews — \(reviews.count)") {
+                    if reviews.isEmpty {
+                        Text("Nothing rated yet").foregroundStyle(.secondary)
+                    }
+                    ForEach(reviews) { review in
+                        NavigationLink(value: review.place) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(review.place.name)
+                                    Text(review.place.category.rawValue.capitalized)
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("\(review.score)").font(.title3.bold())
+                            }
+                        }
                     }
                 }
                 Section("Add friend") {
@@ -65,6 +85,7 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("Profile")
+            .navigationDestination(for: PlaceSummary.self) { RestaurantView(place: $0) }
         }
         .task { await reload() }
         .onChange(of: avatarItem) {
@@ -81,6 +102,7 @@ struct ProfileView: View {
 
     private func reload() async {
         profile = try? await SocialService.myProfile()
+        reviews = (try? await RatingService.myReviews()) ?? []
         handle = profile?.handle ?? ""
         displayName = profile?.display_name ?? ""
         guard let uid = try? await Supa.signInIfNeeded(),
