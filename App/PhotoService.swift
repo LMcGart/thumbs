@@ -79,6 +79,30 @@ enum PhotoService {
         }.map { PlacePhoto(id: $0.id, storage_path: $0.storage_path) }
     }
 
+    /// Photos already on one visit, in display order.
+    static func visitPhotos(visitID: UUID) async throws -> [PlacePhoto] {
+        struct Row: Decodable {
+            let id: UUID
+            let storage_path: String
+            let position: Int
+            let created_at: Date
+        }
+        let rows: [Row] = try await Supa.client.from("photos")
+            .select("id, storage_path, position, created_at")
+            .eq("visit_id", value: visitID)
+            .execute().value
+        return rows.sorted {
+            $0.position != $1.position ? $0.position < $1.position : $0.created_at < $1.created_at
+        }.map { PlacePhoto(id: $0.id, storage_path: $0.storage_path) }
+    }
+
+    /// Deletes one photo: all three tier objects, then the row.
+    static func deletePhoto(_ photo: PlacePhoto) async throws {
+        _ = try await Supa.client.storage.from("photos")
+            .remove(paths: PhotoTier.allCases.map { ImagePath.tier(photo.storage_path, $0) })
+        try await Supa.client.from("photos").delete().eq("id", value: photo.id).execute()
+    }
+
     /// The only place a storage path becomes a display URL (CLAUDE.md Images):
     /// signed, tier-specific, one hour.
     static func url(for basePath: String, tier: PhotoTier) async throws -> URL {

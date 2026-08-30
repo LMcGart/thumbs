@@ -37,6 +37,8 @@ struct RatingFlowView: View {
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var suggestions: [PhotoSuggestion] = []
     @State private var staged: [StagedPhoto] = []
+    @State private var uploadedPhotos: [PhotoService.PlacePhoto] = []
+    @State private var photoToDelete: PhotoService.PlacePhoto?
     @State private var visitDate = Date()
     @State private var dateEdited = false
     @State private var dateAutofilled = false
@@ -123,6 +125,10 @@ struct RatingFlowView: View {
                 longitude: place.coordinate.longitude
             )
         }
+        .task(id: visitID) {
+            guard let visitID else { return }
+            uploadedPhotos = (try? await PhotoService.visitPhotos(visitID: visitID)) ?? []
+        }
         .task(id: selected) {
             // Swap band-mates only after the thumb rests on a stop (~150 ms)
             // so a fast drag doesn't strobe.
@@ -131,6 +137,15 @@ struct RatingFlowView: View {
             guard !Task.isCancelled else { return }
             withAnimation(.easeInOut(duration: 0.18)) {
                 shown = bandMates(at: selected, category: category, from: ratedPlaces.filter { $0.id != place.id }, rotation: rotation)
+            }
+        }
+        .confirmationDialog(
+            "Remove this photo?",
+            isPresented: Binding(get: { photoToDelete != nil }, set: { if !$0 { photoToDelete = nil } }),
+            presenting: photoToDelete
+        ) { photo in
+            Button("Remove photo", role: .destructive) {
+                Task { await deleteUploaded(photo) }
             }
         }
         .onChange(of: pickedItems) {
@@ -201,6 +216,25 @@ struct RatingFlowView: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if !uploadedPhotos.isEmpty {
+                Text("Uploaded").font(.caption).foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(uploadedPhotos) { photo in
+                            TierImage(basePath: photo.storage_path, tier: .thumb)
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(alignment: .topTrailing) {
+                                    Button { photoToDelete = photo } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.white, .black.opacity(0.6))
+                                    }
+                                    .padding(2)
+                                }
+                        }
+                    }
+                }
+            }
             if !suggestions.isEmpty {
                 Text("Taken near \(place.name)").font(.caption).foregroundStyle(.secondary)
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -271,6 +305,16 @@ struct RatingFlowView: View {
             ForEach(savedDishes, id: \.self) { line in
                 Text(line).font(.caption).foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func deleteUploaded(_ photo: PhotoService.PlacePhoto) async {
+        do {
+            try await PhotoService.deletePhoto(photo)
+            uploadedPhotos.removeAll { $0.id == photo.id }
+            onSaved()
+        } catch {
+            errorMessage = "Couldn't remove photo: \(error.localizedDescription)"
         }
     }
 
