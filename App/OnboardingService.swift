@@ -33,12 +33,11 @@ enum OnboardingService {
         let near_lon: Double
     }
 
-    /// The user's last `limit` distinct places from photo metadata: cluster,
-    /// drop frequent locations (home/work), walk most-recent-first, match
-    /// against the server places table, and require a meal signal (Vision on
-    /// up to two photos, full-res on device) so a dog photographed near a
-    /// cafe doesn't become a card. Returns [] when access is declined or
-    /// nothing matches.
+    /// The user's last `limit` distinct places from photo metadata — sure-tier
+    /// only (product decision 2026-08-29): a card must have exactly one
+    /// candidate after dedupe, at least two photos, and a meal signal. No
+    /// disambiguation is ever shown; fewer correct cards beat more doubtful
+    /// ones. Returns [] when access is declined or nothing qualifies.
     @MainActor
     static func recentPlaces(limit: Int = 10, lookbackDays: Int = 180) async -> [DetectedPlace] {
         guard let samples = try? await fetchPhotoSamples(days: lookbackDays) else { return [] }
@@ -64,6 +63,7 @@ enum OnboardingService {
                     distanceMeters: row.distance_meters
                 )
             })
+            guard ranked.count == 1, cluster.photos.count >= 2 else { continue }
             let summaries = ranked.prefix(3).map { candidate in
                 (
                     place: PlaceSummary(
