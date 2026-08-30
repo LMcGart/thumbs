@@ -23,6 +23,8 @@ struct RatingFlowView: View {
     @State private var errorMessage: String?
     @State private var pickedItems: [PhotosPickerItem] = []
     @State private var photoStatus: String?
+    @State private var suggestions: [PhotoSuggestion] = []
+    @State private var addedSuggestions: Set<String> = []
     @State private var dishName = ""
     @State private var dishSuggestions: [String] = []
     @State private var savedDishes: [String] = []
@@ -142,12 +144,40 @@ struct RatingFlowView: View {
 
     private var photoSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if !suggestions.isEmpty {
+                Text("Taken near \(place.name)").font(.caption).foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(suggestions) { suggestion in
+                            ZStack(alignment: .bottomTrailing) {
+                                Image(decorative: suggestion.image, scale: 1)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 72, height: 72)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                if addedSuggestions.contains(suggestion.id) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.white, .green)
+                                        .padding(3)
+                                }
+                            }
+                            .onTapGesture { Task { await addSuggestion(suggestion) } }
+                        }
+                    }
+                }
+            }
             PhotosPicker(selection: $pickedItems, maxSelectionCount: 6, matching: .images) {
                 Label("Add photos", systemImage: "photo.on.rectangle.angled")
             }
             if let photoStatus {
                 Text(photoStatus).font(.caption).foregroundStyle(.secondary)
             }
+        }
+        .task {
+            suggestions = await PhotoSuggestionService.suggestions(
+                latitude: place.coordinate.latitude,
+                longitude: place.coordinate.longitude
+            )
         }
         .onChange(of: pickedItems) {
             guard let visitID = savedVisitID, !pickedItems.isEmpty else { return }
@@ -211,6 +241,23 @@ struct RatingFlowView: View {
             onSaved()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
+        }
+    }
+
+    private func addSuggestion(_ suggestion: PhotoSuggestion) async {
+        guard let visitID = savedVisitID, !addedSuggestions.contains(suggestion.id) else { return }
+        guard let data = await PhotoSuggestionService.imageData(assetID: suggestion.id) else {
+            photoStatus = "Couldn't load that photo"
+            return
+        }
+        do {
+            switch try await PhotoService.attach(imageData: data, visitID: visitID) {
+            case .uploaded: photoStatus = "Added"
+            case .duplicate: photoStatus = "Already added"
+            }
+            addedSuggestions.insert(suggestion.id)
+        } catch {
+            photoStatus = "Upload failed: \(error.localizedDescription)"
         }
     }
 
