@@ -85,7 +85,7 @@ The Spike is a command-line tool, so its Info.plist must be embedded in the bina
 
 1. Search that resolves to a restaurant fast (prominent on home)
 2. Slider rating flow (integers 1–10, live band-mates) with dish tagging as a text field + autocomplete (no AI labeling)
-3. Friend feed — everything friends-only
+3. Friend feed — everything friends-only; comments on visits (added 2026-08-29)
 4. ~~Recent-visits widget~~ — deferred to v1.5 after the on-device spike (2026-08-29); see docs/later.md. Detection ships only inside onboarding.
 5. Calibration onboarding: photo library → last 10 distinct places (180-day max lookback) → slide a score for each; fallback grid of well-known nearby places if photo access is declined
 6. Reservation drops, NYC only, reminder-only: drop-rule widget on restaurant page, pick one or more dates → one calendar event + local notification per drop moment (collapsed when dates share a release), platform link or phone number, confidence + last-verified date, "this is wrong" tap

@@ -24,6 +24,7 @@ struct SearchHomeView: View {
             }
             .navigationTitle("Thumbs")
             .navigationDestination(for: PlaceSummary.self) { RestaurantView(place: $0) }
+            .navigationDestination(for: FeedService.Entry.self) { VisitDetailView(entry: $0) }
         }
     }
 

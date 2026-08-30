@@ -20,7 +20,7 @@ struct FeedView: View {
                 .listRowSeparator(.hidden)
             }
             ForEach(entries) { entry in
-                NavigationLink(value: entry.id) {
+                NavigationLink(value: entry) {
                     FeedEntryRow(entry: entry)
                 }
                 .onAppear {
@@ -35,11 +35,6 @@ struct FeedView: View {
         .listStyle(.plain)
         .refreshable { await reload() }
         .task { await reload() }
-        .navigationDestination(for: UUID.self) { visitID in
-            if let entry = entries.first(where: { $0.id == visitID }) {
-                VisitDetailView(entry: entry)
-            }
-        }
     }
 
     private func reload() async {
@@ -97,6 +92,9 @@ private struct FeedEntryRow: View {
 struct VisitDetailView: View {
     let entry: FeedService.Entry
     @State private var dishes: [(name: String, verdict: String)] = []
+    @State private var comments: [FeedService.Comment] = []
+    @State private var draft = ""
+    @State private var myID: UUID?
 
     var body: some View {
         List {
@@ -126,9 +124,50 @@ struct VisitDetailView: View {
                     }
                 }
             }
+            Section("Comments") {
+                ForEach(comments) { comment in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            Text(comment.profiles.shownName).font(.caption.bold())
+                            Text(comment.created_at.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Text(comment.body)
+                    }
+                    .swipeActions {
+                        if comment.user_id == myID {
+                            Button("Delete", role: .destructive) {
+                                Task {
+                                    try? await FeedService.deleteComment(id: comment.id)
+                                    comments.removeAll { $0.id == comment.id }
+                                }
+                            }
+                        }
+                    }
+                }
+                HStack {
+                    TextField("Add a comment…", text: $draft, axis: .vertical)
+                    Button("Send") { Task { await sendComment() } }
+                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
         .navigationTitle(entry.placeName)
-        .task { dishes = (try? await FeedService.dishes(visitID: entry.id)) ?? [] }
+        .task {
+            myID = try? await Supa.signInIfNeeded()
+            dishes = (try? await FeedService.dishes(visitID: entry.id)) ?? []
+            comments = (try? await FeedService.comments(visitID: entry.id)) ?? []
+        }
+    }
+
+    private func sendComment() async {
+        let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return }
+        do {
+            try await FeedService.addComment(visitID: entry.id, body: body)
+            draft = ""
+            comments = (try? await FeedService.comments(visitID: entry.id)) ?? comments
+        } catch {}
     }
 }
 

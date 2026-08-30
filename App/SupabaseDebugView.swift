@@ -40,6 +40,7 @@ struct SupabaseDebugView: View {
                 }
                 Section("Item 8 checks") {
                     Button("Seed feed friend (200 visits)") { run { try await seedFeedFriend() } }
+                    Button("Unfriend feed bots") { run { try await unfriendFeedBots() } }
                 }
                 Section("Log") {
                     ForEach(log.indices.reversed(), id: \.self) { Text(log[$0]).font(.caption.monospaced()) }
@@ -106,6 +107,10 @@ struct SupabaseDebugView: View {
     private func seedFeedFriend() async throws {
         let uid = try await Supa.signInIfNeeded()
         userID = uid
+        if try await hasFeedBotFriend() {
+            log.append("a feed bot is already your friend — unfriend it first to reseed")
+            return
+        }
         guard let urlString = Bundle.main.object(forInfoDictionaryKey: "SupabaseURL") as? String,
               let baseURL = URL(string: urlString),
               let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String
@@ -179,6 +184,31 @@ struct SupabaseDebugView: View {
         let requester: UUID
         let addressee: UUID
         let status: String
+    }
+
+    private func feedBotIDs() async throws -> [UUID] {
+        let uid = try await Supa.signInIfNeeded()
+        let rows = try await SocialService.friendships()
+        let others = rows.map { $0.requester == uid ? $0.addressee : $0.requester }
+        let profiles = try await SocialService.profiles(ids: others)
+        return profiles.filter { $0.handle?.hasPrefix("feedbot_") == true }.map(\.id)
+    }
+
+    private func hasFeedBotFriend() async throws -> Bool {
+        try await !feedBotIDs().isEmpty
+    }
+
+    /// Removes friendships with seeded bots; RLS then hides their visits.
+    private func unfriendFeedBots() async throws {
+        let uid = try await Supa.signInIfNeeded()
+        let bots = try await feedBotIDs()
+        for bot in bots {
+            try await Supa.client.from("friendships").delete()
+                .eq("requester", value: uid).eq("addressee", value: bot).execute()
+            try await Supa.client.from("friendships").delete()
+                .eq("requester", value: bot).eq("addressee", value: uid).execute()
+        }
+        log.append("unfriended \(bots.count) feed bot\(bots.count == 1 ? "" : "s")")
     }
 
     private func countVisible() async throws {

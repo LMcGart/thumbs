@@ -40,7 +40,7 @@ Everything here is v1 as defined in `CLAUDE.md`. If something seems missing, it'
 - [x] **7. Photos on a visit.** Pick from library (PhotosPicker), on-device HEIC tiers per CLAUDE.md Images, strip location metadata, upload to Supabase Storage under `visits/{id}/{photoId}/{tier}.heic`, `ImageURLBuilder`, display on the visit and restaurant page, `full` tier lazy on zoom in detail view.
   *Done when:* a JPEG and a HEIC source both upload as three HEIC tiers; the feed-size view never requests `full`; storage RLS blocks a non-friend from fetching a photo path.
 
-- [ ] **8. Friends and feed.** Profile (name, handle, avatar). Friend request / accept by handle. Feed: accepted friends' visits, reverse chronological, paginated 20 at a time, `display` tier images, tap → visit detail. Empty state when no friends.
+- [ ] **8. Friends and feed.** *(Amended 2026-08-29: + comments on visits — friends-visibility, delete-your-own.)* Profile (name, handle, avatar). Friend request / accept by handle. Feed: accepted friends' visits, reverse chronological, paginated 20 at a time, `display` tier images, tap → visit detail. Empty state when no friends.
   *Done when:* two simulator users friend each other and see each other's visits; a third user sees neither; scrolling 200 visits stays smooth.
 
 - [x] ~~**9. Recent-visits widget.**~~ **Deferred to v1.5** (2026-08-29) after the on-device spike measured 8 high-confidence detections/year — density-capped, not fixable with better photos. Rationale and revisit conditions in `docs/later.md`. Number kept so later items keep theirs.

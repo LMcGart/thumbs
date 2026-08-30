@@ -3,7 +3,7 @@ import Places
 import Supabase
 
 enum FeedService {
-    struct Entry: Identifiable, Sendable {
+    struct Entry: Identifiable, Hashable, Sendable {
         let id: UUID
         let user: SocialService.Profile
         let placeID: Int64
@@ -69,6 +69,40 @@ enum FeedService {
                     .map { PhotoService.PlacePhoto(id: $0.id, storage_path: $0.storage_path) }
             )
         }
+    }
+
+    struct Comment: Decodable, Identifiable, Hashable, Sendable {
+        let id: UUID
+        let user_id: UUID
+        let body: String
+        let created_at: Date
+        let profiles: SocialService.Profile
+    }
+
+    static func comments(visitID: UUID) async throws -> [Comment] {
+        _ = try await Supa.signInIfNeeded()
+        return try await Supa.client.from("comments")
+            .select("id, user_id, body, created_at, profiles(id, handle, display_name, avatar_path)")
+            .eq("visit_id", value: visitID)
+            .order("created_at", ascending: true)
+            .execute().value
+    }
+
+    private struct CommentInsert: Encodable {
+        let visit_id: UUID
+        let user_id: UUID
+        let body: String
+    }
+
+    static func addComment(visitID: UUID, body: String) async throws {
+        let uid = try await Supa.signInIfNeeded()
+        try await Supa.client.from("comments")
+            .insert(CommentInsert(visit_id: visitID, user_id: uid, body: body))
+            .execute()
+    }
+
+    static func deleteComment(id: UUID) async throws {
+        try await Supa.client.from("comments").delete().eq("id", value: id).execute()
     }
 
     /// Dishes on one visit, for the detail view.
