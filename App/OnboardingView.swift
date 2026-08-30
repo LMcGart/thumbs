@@ -48,6 +48,7 @@ struct OnboardingView: View {
                 TextField("handle (for friend requests)", text: $handle)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .onChange(of: handle) { handle = handle.lowercased() }
             }
             if let profileStatus {
                 Text(profileStatus).font(.caption).foregroundStyle(.red)
@@ -57,8 +58,10 @@ struct OnboardingView: View {
                     do {
                         try await SocialService.updateProfile(handle: handle, displayName: displayName)
                         step = .friends
+                    } catch let handleError as SocialService.HandleError {
+                        profileStatus = handleError.errorDescription
                     } catch {
-                        profileStatus = "Handles are 3–20 lowercase letters, numbers or _ and must be unique."
+                        profileStatus = "Couldn't save: \(error.localizedDescription)"
                     }
                 }
             }

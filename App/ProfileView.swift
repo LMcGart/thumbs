@@ -28,6 +28,7 @@ struct ProfileView: View {
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .font(.caption)
+                                .onChange(of: handle) { handle = handle.lowercased() }
                         }
                     }
                     Button("Save") { Task { await saveProfile() } }
@@ -131,8 +132,10 @@ struct ProfileView: View {
             try await SocialService.updateProfile(handle: handle, displayName: displayName)
             status = "Saved"
             await reload()
+        } catch let handleError as SocialService.HandleError {
+            status = handleError.errorDescription
         } catch {
-            status = "Couldn't save — handles are 3–20 lowercase letters, numbers, _ and must be unique"
+            status = "Couldn't save: \(error.localizedDescription)"
         }
     }
 

@@ -25,14 +25,37 @@ enum SocialService {
         let display_name: String?
     }
 
+    enum HandleError: LocalizedError {
+        case taken
+        case invalidFormat
+
+        var errorDescription: String? {
+            switch self {
+            case .taken: "This username is already taken"
+            case .invalidFormat: "Handles must be 3–20 letters, numbers, or _"
+            }
+        }
+    }
+
     static func updateProfile(handle: String?, displayName: String?) async throws {
         let uid = try await Supa.signInIfNeeded()
         let normalized = handle?.trimmingCharacters(in: .whitespaces).lowercased()
-        try await Supa.client.from("profiles")
-            .update(ProfileUpdate(handle: normalized?.isEmpty == true ? nil : normalized,
-                                  display_name: displayName?.isEmpty == true ? nil : displayName))
-            .eq("id", value: uid)
-            .execute()
+        if let normalized, !normalized.isEmpty,
+           normalized.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) == nil {
+            throw HandleError.invalidFormat
+        }
+        do {
+            try await Supa.client.from("profiles")
+                .update(ProfileUpdate(handle: normalized?.isEmpty == true ? nil : normalized,
+                                      display_name: displayName?.isEmpty == true ? nil : displayName))
+                .eq("id", value: uid)
+                .execute()
+        } catch {
+            let text = String(describing: error)
+            if text.contains("23505") || text.contains("duplicate key") { throw HandleError.taken }
+            if text.contains("23514") || text.contains("handle_format") { throw HandleError.invalidFormat }
+            throw error
+        }
     }
 
     private struct AvatarPathUpdate: Encodable { let avatar_path: String }
