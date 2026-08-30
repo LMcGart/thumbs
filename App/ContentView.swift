@@ -1,7 +1,17 @@
 import SwiftUI
 
 struct ContentView: View {
+    @AppStorage("onboardingComplete") private var onboardingComplete = false
+
     var body: some View {
+        if !onboardingComplete {
+            OnboardingView(complete: $onboardingComplete)
+        } else {
+            mainTabs
+        }
+    }
+
+    private var mainTabs: some View {
         // Keyboard dismissal, app-wide: any scroll drag closes it, and a Done
         // accessory above the keyboard closes it explicitly.
         TabView {

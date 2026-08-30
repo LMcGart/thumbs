@@ -46,12 +46,16 @@ struct RatingFlowView: View {
     @State private var dishSuggestions: [String] = []
     @State private var savedDishes: [String] = []
 
-    init(place: PlaceSummary, preset: RatingService.MyRating? = nil, onSaved: @escaping () -> Void) {
+    init(place: PlaceSummary, preset: RatingService.MyRating? = nil, initialDate: Date? = nil, onSaved: @escaping () -> Void) {
         self.place = place
         self.onSaved = onSaved
         _original = State(initialValue: preset)
         _selected = State(initialValue: preset?.score)
         _category = State(initialValue: preset?.category ?? place.category)
+        // A detected visit date (onboarding) arrives pre-filled and photo
+        // autofill must not fight it.
+        _visitDate = State(initialValue: initialDate ?? Date())
+        _dateAutofilled = State(initialValue: initialDate != nil)
     }
 
     var body: some View {

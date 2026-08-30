@@ -38,6 +38,12 @@ struct SupabaseDebugView: View {
                 Section("Item 6 checks") {
                     Button("Seed 30 test ratings") { run { try await seedThirtyRatings() } }
                 }
+                Section("Item 10 checks") {
+                    Button("Reset onboarding (relaunch app)") {
+                        UserDefaults.standard.set(false, forKey: "onboardingComplete")
+                        log.append("onboarding reset — relaunch to see it")
+                    }
+                }
                 Section("Item 8 checks") {
                     Button("Seed feed friend (200 visits)") { run { try await seedFeedFriend() } }
                     Button("Unfriend feed bots") { run { try await unfriendFeedBots() } }
