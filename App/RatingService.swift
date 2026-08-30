@@ -65,6 +65,13 @@ enum RatingService {
                 onConflict: "user_id,place_id"
             )
             .execute()
+        return try await ensureVisit(placeID: placeID, visitedAt: visitedAt)
+    }
+
+    /// The latest activity-log visit at the place, created if none exists —
+    /// the anchor photos and dishes attach to.
+    static func ensureVisit(placeID: Int64, visitedAt: Date = Date()) async throws -> UUID {
+        let uid = try await Supa.signInIfNeeded()
         let existing: [VisitRow] = try await Supa.client.from("visits")
             .select("id")
             .eq("place_id", value: Int(placeID))

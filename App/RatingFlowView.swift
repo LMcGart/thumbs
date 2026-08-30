@@ -29,7 +29,8 @@ struct RatingFlowView: View {
     @State private var category: PlaceCategory
     @State private var ratedPlaces: [RatedPlace] = []
     @State private var shown: BandMates?
-    @State private var savedVisitID: UUID?
+    @State private var visitID: UUID?
+    @State private var hasCommitted = false
     @State private var saveTask: Task<Void, Never>?
     @State private var discarded = false
     @State private var errorMessage: String?
@@ -82,7 +83,7 @@ struct RatingFlowView: View {
                         Text(errorMessage).font(.caption).foregroundStyle(.red)
                     }
 
-                    if savedVisitID != nil {
+                    if visitID != nil {
                         photoSection
                         dishSection
                     }
@@ -101,7 +102,7 @@ struct RatingFlowView: View {
                         Image(systemName: "xmark")
                     }
                 }
-                if savedVisitID != nil {
+                if hasCommitted || original != nil {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
                     }
@@ -110,6 +111,11 @@ struct RatingFlowView: View {
         }
         .task {
             rotation += 1
+            // Editing an existing rating: its visit already exists, so photos
+            // and dishes are available immediately, not gated on a re-commit.
+            if original != nil {
+                visitID = try? await RatingService.ensureVisit(placeID: place.id)
+            }
             ratedPlaces = (try? await RatingService.myRatedPlaces()) ?? []
             dishSuggestions = (try? await RatingService.dishNames(placeID: place.id)) ?? []
             suggestions = await PhotoSuggestionService.suggestions(
@@ -136,7 +142,7 @@ struct RatingFlowView: View {
             // The review was kept: hand staged photos to the shared background
             // uploader (which the restaurant page also renders as previews).
             // A discarded review uploads nothing.
-            guard !discarded, let visitID = savedVisitID, !staged.isEmpty else { return }
+            guard !discarded, let visitID, !staged.isEmpty, hasCommitted || original != nil else { return }
             PendingPhotoUploads.shared.enqueue(
                 photos: staged.map { ($0.id, $0.data, $0.preview) },
                 placeID: place.id,
@@ -151,7 +157,7 @@ struct RatingFlowView: View {
             set: { newDate in
                 visitDate = newDate
                 dateEdited = true
-                if let visitID = savedVisitID {
+                if let visitID {
                     Task { try? await RatingService.setVisitDate(visitID: visitID, date: newDate) }
                 }
             }
@@ -301,7 +307,7 @@ struct RatingFlowView: View {
         guard let date, !dateEdited, !dateAutofilled else { return }
         dateAutofilled = true
         visitDate = date
-        if let visitID = savedVisitID {
+        if let visitID {
             Task { try? await RatingService.setVisitDate(visitID: visitID, date: date) }
         }
     }
@@ -310,9 +316,10 @@ struct RatingFlowView: View {
     // this place; the first also ensures a visit exists for attachments.
     private func save(_ score: Int) async {
         do {
-            let firstSave = savedVisitID == nil
-            savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category, visitedAt: visitDate)
-            if firstSave, dateEdited || dateAutofilled, let visitID = savedVisitID {
+            let firstSave = !hasCommitted
+            visitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category, visitedAt: visitDate)
+            hasCommitted = true
+            if firstSave, dateEdited || dateAutofilled, let visitID {
                 // The visit may predate this flow; make its date match the picker.
                 try? await RatingService.setVisitDate(visitID: visitID, date: visitDate)
             }
@@ -330,11 +337,11 @@ struct RatingFlowView: View {
         staged = []
         do {
             if let original {
-                if savedVisitID != nil, selected != original.score || category != original.category {
+                if hasCommitted, selected != original.score || category != original.category {
                     _ = try await RatingService.saveRating(placeID: place.id, score: original.score, category: original.category)
                     onSaved()
                 }
-            } else if savedVisitID != nil {
+            } else if hasCommitted {
                 try await RatingService.removeRating(placeID: place.id)
                 onSaved()
             }
@@ -345,7 +352,7 @@ struct RatingFlowView: View {
     }
 
     private func addDish(verdict: String) async {
-        guard let visitID = savedVisitID else { return }
+        guard let visitID else { return }
         let name = dishName.trimmingCharacters(in: .whitespaces)
         do {
             try await RatingService.saveDish(visitID: visitID, name: name, verdict: verdict)
