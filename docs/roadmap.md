@@ -31,8 +31,8 @@ Everything here is v1 as defined in `CLAUDE.md`. If something seems missing, it'
 
 ## Phase 2 — Core loop
 
-- [ ] **5. Search.** Prominent search bar on home. Server-side query on `places` by name prefix + proximity (PostGIS), NYC-biased. Results list with name, subtype, neighborhood. "Can't find it?" → `MKLocalSearch`, choose a result → insert into `places` with MapKit id → open it. Restaurant page skeleton: name, category chip, address, your rating if any.
-  *Done when:* typing "Lupa" surfaces Lupa in under 300 ms on the simulator against the seeded DB; a place not in the DB can be added from Apple's results and appears in search afterward.
+- [ ] **5. Search.** Prominent search bar on home. Server-side query on `places` by name prefix + proximity (PostGIS), NYC-biased. Results list with name, subtype, neighborhood. When server results are thin or empty, blend `MKLocalSearch` results into the same list (labeled "from Apple Maps" — no separate "can't find it?" tap), so search works anywhere on earth; choosing an Apple result inserts it into `places` with its MapKit id → open it. Restaurant page skeleton: name, category chip, address, your rating if any.
+  *Done when:* typing "Lupa" surfaces Lupa in under 300 ms on the simulator against the seeded DB; searching a place that isn't in the DB shows Apple results inline, and picking one adds it so it appears in server search afterward.
 
 - [ ] **6. Rating flow.** The slider per CLAUDE.md Rating spec: stepped 1–10, no default, band-mates above, nearest-band fallback, histogram in track, category chip. Band-mate selection and histogram in `Core/Rating` with tests. Writes a visit + rating to Supabase. Revisit: preset to current score, standing updated. Dish tagging: text field with autocomplete from that place's existing dish names.
   *Done when:* with 30 seeded ratings, sliding shows the right band-mates at every stop and the empty-band fallback at stops with none; a rating round-trips to the server and appears on the restaurant page; tests cover band-mate priority and rotation.

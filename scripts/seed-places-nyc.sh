@@ -8,17 +8,23 @@ cd "$(dirname "$0")/.."
 python3 - <<'PYEOF'
 import sqlite3
 
-# Five boroughs plus a sliver of NJ; matches the seed scope in roadmap item 4.
-LAT = (40.49, 40.92)
-LON = (-74.27, -73.68)
+# NYC (five boroughs plus a NJ sliver) per roadmap item 4, plus the Bay Area
+# (SF, Oakland/Berkeley, Lafayette, north peninsula) so the founder's own
+# onboarding exercises the real detection path.
+BOXES = [
+    ((40.49, 40.92), (-74.27, -73.68)),   # NYC
+    ((37.60, 37.95), (-122.55, -122.05)), # SF Bay
+]
 BATCH = 1000
 
 db = sqlite3.connect('docs/private/places.sqlite')
-rows = db.execute(
-    'SELECT gers_id, name, lat, lon, category, subtype, confidence FROM places'
-    ' WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?',
-    (*LAT, *LON),
-).fetchall()
+rows = []
+for (lat_min, lat_max), (lon_min, lon_max) in BOXES:
+    rows += db.execute(
+        'SELECT gers_id, name, lat, lon, category, subtype, confidence FROM places'
+        ' WHERE lat BETWEEN ? AND ? AND lon BETWEEN ? AND ?',
+        (lat_min, lat_max, lon_min, lon_max),
+    ).fetchall()
 
 def lit(value):
     if value is None:
@@ -38,6 +44,6 @@ with open('supabase/seed.sql', 'w') as out:
             )
         out.write(',\n'.join(values))
         out.write('\non conflict (gers_id) do nothing;\n')
-print(f'{len(rows)} NYC places -> supabase/seed.sql')
+print(f'{len(rows)} places (NYC + SF Bay) -> supabase/seed.sql')
 PYEOF
 ls -lh supabase/seed.sql
