@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
+        // Keyboard dismissal, app-wide: any scroll drag closes it, and a Done
+        // accessory above the keyboard closes it explicitly.
         TabView {
             SearchHomeView()
                 .tabItem { Label("Home", systemImage: "magnifyingglass") }
@@ -12,6 +14,17 @@ struct ContentView: View {
                 .tabItem { Label("Detection", systemImage: "camera.metering.spot") }
             SupabaseDebugView()
                 .tabItem { Label("Supabase", systemImage: "cylinder.split.1x2") }
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                    )
+                }
+            }
         }
     }
 }
