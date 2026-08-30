@@ -88,11 +88,11 @@ The Spike is a command-line tool, so its Info.plist must be embedded in the bina
 3. Friend feed — everything friends-only; comments on visits (added 2026-08-29)
 4. ~~Recent-visits widget~~ — deferred to v1.5 after the on-device spike (2026-08-29); see docs/later.md. Detection ships only inside onboarding.
 5. Calibration onboarding: photo library → last 10 distinct places (180-day max lookback) → slide a score for each; fallback grid of well-known nearby places if photo access is declined
-6. Reservation drops, NYC only, reminder-only: drop-rule widget on restaurant page, pick one or more dates → one calendar event + local notification per drop moment (collapsed when dates share a release), platform link or phone number, confidence + last-verified date, "this is wrong" tap
+6. ~~Reservation drops~~ — cut from v1 (2026-08-29); see docs/later.md
 
 Not in v1 (do not build): lists, map, public profiles, nearby tabs, web profile, AI dish labeling, re-rank page, rec score, up-and-coming, dish search, unlocks, reservation sharing/outcomes/crown, anything restaurant-facing.
 
-Order of work: Spike (detection) → Supabase setup + schema + places seed → search → rating flow → feed → onboarding → reservation drops.
+Order of work: Spike (detection) → Supabase setup + schema + places seed → search → rating flow → feed → onboarding → TestFlight prep.
 
 ## Rating spec (v1) — docs/product-notes.md §6
 

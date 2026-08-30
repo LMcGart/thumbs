@@ -35,3 +35,11 @@ better ranked. Cheap upgrades when it starts to matter: `pg_trgm` for
 typo-tolerant fuzzy matching (one migration), word-level prefix matching
 ("carota" finds "Via Carota"), and a friends-rated-here ranking boost once
 visit data exists.
+
+
+## Reservation drops (was roadmap item 11) — cut from v1, 2026-08-29
+
+Product decision: not necessary for v1. The rule engine, drop-rules CSV
+workflow, restaurant-page widget, and calendar/notification CTA are all
+unbuilt; the `drop_rules` and `reminders` tables exist in the schema and stay
+dormant. Revisit if testers ask for it.
