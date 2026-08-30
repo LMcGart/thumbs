@@ -4,7 +4,7 @@ import SwiftUI
 struct SearchHomeView: View {
     @State private var model = SearchModel()
     @State private var query = ""
-    @State private var path: [PlaceSummary] = []
+    @State private var path = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $path) {
