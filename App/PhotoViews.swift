@@ -3,10 +3,15 @@ import SwiftUI
 
 /// Grid of visit photos at thumb tier. Structurally list-safe: this view can
 /// only ever request `thumb` — feeds and grids have no path to `full`.
+private struct PagerStart: Identifiable {
+    let index: Int
+    var id: Int { index }
+}
+
 struct PhotoGridView: View {
     let photos: [PhotoService.PlacePhoto]
     var pending: [PendingPhotoUploads.Pending] = []
-    @State private var selected: PhotoService.PlacePhoto?
+    @State private var pagerStart: PagerStart?
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 4)], spacing: 4) {
@@ -24,19 +29,42 @@ struct PhotoGridView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .opacity(0.75)
             }
-            ForEach(photos) { photo in
+            ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                 TierImage(basePath: photo.storage_path, tier: .thumb)
                     .aspectRatio(1, contentMode: .fill)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .onTapGesture { selected = photo }
+                    .onTapGesture { pagerStart = PagerStart(index: index) }
             }
         }
-        .sheet(item: $selected) { PhotoDetailView(photo: $0) }
+        .sheet(item: $pagerStart) { start in
+            PhotoPagerView(photos: photos, startIndex: start.index)
+        }
     }
 }
 
-/// Detail view: display tier on open; `full` only after the user zooms in.
-struct PhotoDetailView: View {
+/// Swipeable pager over a place's photos; each page opens at display tier and
+/// loads `full` only after the user zooms in.
+struct PhotoPagerView: View {
+    let photos: [PhotoService.PlacePhoto]
+    @State private var index: Int
+
+    init(photos: [PhotoService.PlacePhoto], startIndex: Int) {
+        self.photos = photos
+        _index = State(initialValue: startIndex)
+    }
+
+    var body: some View {
+        TabView(selection: $index) {
+            ForEach(Array(photos.enumerated()), id: \.element.id) { position, photo in
+                ZoomableTierImage(photo: photo).tag(position)
+            }
+        }
+        .tabViewStyle(.page)
+        .presentationDragIndicator(.visible)
+    }
+}
+
+private struct ZoomableTierImage: View {
     let photo: PhotoService.PlacePhoto
     @State private var tier: PhotoTier = .display
     @State private var zoom: CGFloat = 1
@@ -52,7 +80,6 @@ struct PhotoDetailView: View {
                         withAnimation { zoom = 1 }
                     }
             )
-            .presentationDragIndicator(.visible)
     }
 }
 

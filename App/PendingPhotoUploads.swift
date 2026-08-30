@@ -27,8 +27,8 @@ final class PendingPhotoUploads {
         items.append(contentsOf: new.map { Pending(id: $0.id, placeID: placeID, preview: $0.preview) })
         let uploads = new.map { (id: $0.id, data: $0.data) }
         Task {
-            for upload in uploads {
-                _ = try? await PhotoService.attach(imageData: upload.data, visitID: visitID)
+            for (index, upload) in uploads.enumerated() {
+                _ = try? await PhotoService.attach(imageData: upload.data, visitID: visitID, position: index)
                 items.removeAll { $0.id == upload.id }
             }
         }
