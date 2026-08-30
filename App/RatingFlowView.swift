@@ -62,6 +62,12 @@ struct RatingFlowView: View {
                     dishSection
                 }
                 Spacer()
+                if savedVisitID != nil || presetScore != nil {
+                    Button("Remove rating", role: .destructive) {
+                        Task { await removeRating() }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
             }
             .padding()
             .navigationTitle(place.name)
@@ -195,6 +201,16 @@ struct RatingFlowView: View {
             onSaved()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
+        }
+    }
+
+    private func removeRating() async {
+        do {
+            try await RatingService.removeRating(placeID: place.id)
+            onSaved()
+            dismiss()
+        } catch {
+            errorMessage = "Couldn't remove: \(error.localizedDescription)"
         }
     }
 

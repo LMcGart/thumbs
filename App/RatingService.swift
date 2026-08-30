@@ -78,6 +78,31 @@ enum RatingService {
         return visit.id
     }
 
+    /// Deletes the user's rating for the place, and the auto-created
+    /// activity-log visit too when nothing (photos, dishes) hangs off it.
+    static func removeRating(placeID: Int64) async throws {
+        let uid = try await Supa.signInIfNeeded()
+        try await Supa.client.from("ratings").delete()
+            .eq("user_id", value: uid)
+            .eq("place_id", value: Int(placeID))
+            .execute()
+        let visits: [VisitRow] = try await Supa.client.from("visits")
+            .select("id")
+            .eq("user_id", value: uid)
+            .eq("place_id", value: Int(placeID))
+            .order("visited_at", ascending: false)
+            .limit(1).execute().value
+        guard let visit = visits.first else { return }
+        struct Stub: Decodable { let id: UUID }
+        let photos: [Stub] = try await Supa.client.from("photos")
+            .select("id").eq("visit_id", value: visit.id).limit(1).execute().value
+        let dishes: [Stub] = try await Supa.client.from("dish_ratings")
+            .select("id").eq("visit_id", value: visit.id).limit(1).execute().value
+        if photos.isEmpty && dishes.isEmpty {
+            try await Supa.client.from("visits").delete().eq("id", value: visit.id).execute()
+        }
+    }
+
     /// The user's rating for this place, if any.
     static func myRating(placeID: Int64) async throws -> Int? {
         let uid = try await Supa.signInIfNeeded()
