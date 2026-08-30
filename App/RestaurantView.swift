@@ -1,12 +1,11 @@
 import CoreLocation
 import Places
-import Rating
 import SwiftUI
 
 struct RestaurantView: View {
     let place: PlaceSummary
     @State private var address: String?
-    @State private var myVisits: [(score: Int, date: Date)] = []
+    @State private var myScore: Int?
     @State private var loadedRating = false
     @State private var showRatingFlow = false
     @State private var photos: [PhotoService.PlacePhoto] = []
@@ -27,24 +26,20 @@ struct RestaurantView: View {
                 }
             }
             Section("Your rating") {
-                if !myVisits.isEmpty {
-                    let value = standing(for: myVisits)
-                    Text(myVisits.count == 1
-                         ? "\(myVisits[0].score)/10"
-                         : String(format: "%.1f/10 · %d visits", value, myVisits.count))
-                        .font(.title3.bold())
+                if let myScore {
+                    Text("\(myScore)/10").font(.title3.bold())
                 } else if loadedRating {
                     Text("Not rated yet").foregroundStyle(.secondary)
                 }
-                Button(myVisits.isEmpty ? "Rate" : "Rate again") { showRatingFlow = true }
+                Button(myScore == nil ? "Rate" : "Edit rating") { showRatingFlow = true }
             }
         }
         .navigationTitle(place.name)
         .task { await load() }
         .sheet(isPresented: $showRatingFlow) {
-            RatingFlowView(place: place, presetScore: myVisits.first?.score) {
+            RatingFlowView(place: place, presetScore: myScore) {
                 Task {
-                    myVisits = (try? await RatingService.myVisits(placeID: place.id)) ?? []
+                    myScore = try? await RatingService.myRating(placeID: place.id)
                     photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
                 }
             }
@@ -60,7 +55,7 @@ struct RestaurantView: View {
                     .compactMap { $0 }.joined(separator: " ")
             }
         }
-        myVisits = (try? await RatingService.myVisits(placeID: place.id)) ?? []
+        myScore = try? await RatingService.myRating(placeID: place.id)
         photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
         loadedRating = true
     }

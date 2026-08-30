@@ -4,33 +4,37 @@ import Rating
 import Supabase
 
 enum RatingService {
-    private struct VisitJoin: Decodable {
-        struct RatingRow: Decodable { let score: Int }
+    private struct RatingJoin: Decodable {
         struct PlaceJoin: Decodable { let name: String; let category: String }
         let place_id: Int64
-        let visited_at: Date
-        let ratings: RatingRow?
+        let score: Int
+        let updated_at: Date
         let places: PlaceJoin
     }
 
-    /// Everything the user has rated, aggregated per place for band-mate
-    /// selection (latest score, visit count, last visit).
+    /// Everything the user has rated, one row per place, with visit counts
+    /// from the activity log for band-mate priority.
     static func myRatedPlaces() async throws -> [RatedPlace] {
         let uid = try await Supa.signInIfNeeded()
-        let rows: [VisitJoin] = try await Supa.client.from("visits")
-            .select("place_id, visited_at, ratings(score), places(name, category)")
+        let ratings: [RatingJoin] = try await Supa.client.from("ratings")
+            .select("place_id, score, updated_at, places(name, category)")
             .eq("user_id", value: uid)
             .execute().value
-        return Dictionary(grouping: rows, by: \.place_id).compactMap { placeID, visits in
-            let ratedVisits = visits.filter { $0.ratings != nil }.sorted { $0.visited_at > $1.visited_at }
-            guard let latest = ratedVisits.first, let rating = latest.ratings else { return nil }
+        struct VisitStub: Decodable { let place_id: Int64; let visited_at: Date }
+        let visits: [VisitStub] = try await Supa.client.from("visits")
+            .select("place_id, visited_at")
+            .eq("user_id", value: uid)
+            .execute().value
+        let visitsByPlace = Dictionary(grouping: visits, by: \.place_id)
+        return ratings.map { rating in
+            let placeVisits = visitsByPlace[rating.place_id] ?? []
             return RatedPlace(
-                id: placeID,
-                name: latest.places.name,
-                category: PlaceCategory(rawValue: latest.places.category) ?? .restaurant,
+                id: rating.place_id,
+                name: rating.places.name,
+                category: PlaceCategory(rawValue: rating.places.category) ?? .restaurant,
                 score: rating.score,
-                visitCount: ratedVisits.count,
-                lastVisitedAt: latest.visited_at
+                visitCount: max(placeVisits.count, 1),
+                lastVisitedAt: placeVisits.map(\.visited_at).max() ?? rating.updated_at
             )
         }
     }
@@ -42,51 +46,48 @@ enum RatingService {
         let source: String
     }
     private struct VisitRow: Decodable { let id: UUID }
-    private struct RatingInsert: Encodable {
-        let visit_id: UUID
+    private struct RatingUpsert: Encodable {
+        let user_id: UUID
+        let place_id: Int64
         let score: Int
         let category: String
+        let updated_at: Date
     }
 
-    /// Writes a new visit + rating; returns the visit id for dish tagging.
+    /// Upserts the user's one rating for the place, ensures a visit exists as
+    /// the activity-log entry (created only if none), and returns that visit's
+    /// id so photos and dishes have somewhere to attach.
     static func saveRating(placeID: Int64, score: Int, category: PlaceCategory) async throws -> UUID {
         let uid = try await Supa.signInIfNeeded()
-        let visit: VisitRow = try await Supa.client.from("visits")
-            .insert(VisitInsert(user_id: uid, place_id: placeID, visited_at: Date(), source: "manual"))
-            .select("id").single().execute().value
         try await Supa.client.from("ratings")
-            .insert(RatingInsert(visit_id: visit.id, score: score, category: category.rawValue))
+            .upsert(
+                RatingUpsert(user_id: uid, place_id: placeID, score: score, category: category.rawValue, updated_at: Date()),
+                onConflict: "user_id,place_id"
+            )
             .execute()
-        return visit.id
-    }
-
-    private struct RatingUpdate: Encodable {
-        let score: Int
-        let category: String
-    }
-
-    static func updateRating(visitID: UUID, score: Int, category: PlaceCategory) async throws {
-        try await Supa.client.from("ratings")
-            .update(RatingUpdate(score: score, category: category.rawValue))
-            .eq("visit_id", value: visitID)
-            .execute()
-    }
-
-    /// My rating history at one place, for standing + revisit preset.
-    static func myVisits(placeID: Int64) async throws -> [(score: Int, date: Date)] {
-        let uid = try await Supa.signInIfNeeded()
-        struct Row: Decodable {
-            struct RatingRow: Decodable { let score: Int }
-            let visited_at: Date
-            let ratings: RatingRow?
-        }
-        let rows: [Row] = try await Supa.client.from("visits")
-            .select("visited_at, ratings(score)")
+        let existing: [VisitRow] = try await Supa.client.from("visits")
+            .select("id")
             .eq("place_id", value: Int(placeID))
             .eq("user_id", value: uid)
             .order("visited_at", ascending: false)
-            .execute().value
-        return rows.compactMap { row in row.ratings.map { (score: $0.score, date: row.visited_at) } }
+            .limit(1).execute().value
+        if let visit = existing.first { return visit.id }
+        let visit: VisitRow = try await Supa.client.from("visits")
+            .insert(VisitInsert(user_id: uid, place_id: placeID, visited_at: Date(), source: "manual"))
+            .select("id").single().execute().value
+        return visit.id
+    }
+
+    /// The user's rating for this place, if any.
+    static func myRating(placeID: Int64) async throws -> Int? {
+        let uid = try await Supa.signInIfNeeded()
+        struct Row: Decodable { let score: Int }
+        let rows: [Row] = try await Supa.client.from("ratings")
+            .select("score")
+            .eq("place_id", value: Int(placeID))
+            .eq("user_id", value: uid)
+            .limit(1).execute().value
+        return rows.first?.score
     }
 
     /// Existing dish names at this place (all users), for autocomplete.

@@ -53,7 +53,7 @@ visit = call("POST", "/rest/v1/visits", token_a,
                    "visited_at": "2026-08-29T19:00:00Z", "source": "manual"},
              prefer="return=representation")[0]
 call("POST", "/rest/v1/ratings", token_a,
-     body={"visit_id": visit["id"], "score": 7, "category": "restaurant"})
+     body={"user_id": id_a, "place_id": place["id"], "score": 7, "category": "restaurant"})
 mine = call("GET", "/rest/v1/ratings?select=id", token_a)
 check(f"A rated {place['name']!r} and reads it back", len(mine) == 1)
 

@@ -105,7 +105,7 @@ Order of work: Spike (detection) → Supabase setup + schema + places seed → s
 - Band-mate selection priority: most visits, most recently visited or viewed, survived a re-rank. Rotate so the same three don't repeat.
 - Release = done. There is no separate confirm step.
 - Dishes: per-dish Must-order / Good / Skip, optional, never rolled into the restaurant score.
-- Revisits: same slider preset to the current score; standing is a recency-weighted blend with a floor.
+- One editable rating per place (decided 2026-08-29, replacing per-visit ratings + standing blend): re-rating opens the same slider preset to the current score and edits the number in place. Visits remain the activity log.
 - Re-rank page (not v1) uses the same component.
 - No forced order within a band. No sub-scores for service/ambiance/value.
 

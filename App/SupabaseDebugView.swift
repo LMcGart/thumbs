@@ -17,7 +17,8 @@ struct SupabaseDebugView: View {
     }
     private struct VisitRow: Decodable { let id: UUID }
     private struct RatingInsert: Encodable {
-        let visit_id: UUID
+        let user_id: UUID
+        let place_id: Int64
         let score: Int
         let category: String
     }
@@ -72,7 +73,7 @@ struct SupabaseDebugView: View {
             .insert(VisitInsert(user_id: uid, place_id: place.id, visited_at: Date(), source: "manual"))
             .select("id").single().execute().value
         try await Supa.client.from("ratings")
-            .insert(RatingInsert(visit_id: visit.id, score: 7, category: "restaurant"))
+            .upsert(RatingInsert(user_id: uid, place_id: place.id, score: 7, category: "restaurant"), onConflict: "user_id,place_id")
             .execute()
         log.append("rated \(place.name) → visit \(visit.id.uuidString.prefix(8))")
     }
@@ -86,11 +87,11 @@ struct SupabaseDebugView: View {
         let scores = [7, 4, 8, 6, 9, 7, 5, 8, 7, 6, 9, 3, 8, 7, 10, 6, 8, 5, 7, 9, 8, 6, 7, 8, 4, 9, 7, 6, 8, 7]
         for (index, seedPlace) in places.enumerated() {
             let visitedAt = Date().addingTimeInterval(-Double.random(in: 1...300) * 86_400)
-            let visit: VisitRow = try await Supa.client.from("visits")
+            _ = try await Supa.client.from("visits")
                 .insert(VisitInsert(user_id: uid, place_id: seedPlace.id, visited_at: visitedAt, source: "manual"))
-                .select("id").single().execute().value
+                .execute()
             try await Supa.client.from("ratings")
-                .insert(RatingInsert(visit_id: visit.id, score: scores[index], category: seedPlace.category))
+                .upsert(RatingInsert(user_id: uid, place_id: seedPlace.id, score: scores[index], category: seedPlace.category), onConflict: "user_id,place_id")
                 .execute()
         }
         log.append("seeded \(places.count) ratings")
