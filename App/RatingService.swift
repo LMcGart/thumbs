@@ -68,19 +68,6 @@ enum RatingService {
         return try await ensureVisit(placeID: placeID, visitedAt: visitedAt)
     }
 
-    /// The latest visit row at the place, if any, with its date.
-    static func latestVisit(placeID: Int64) async throws -> (id: UUID, visitedAt: Date)? {
-        let uid = try await Supa.signInIfNeeded()
-        struct Row: Decodable { let id: UUID; let visited_at: Date }
-        let rows: [Row] = try await Supa.client.from("visits")
-            .select("id, visited_at")
-            .eq("place_id", value: Int(placeID))
-            .eq("user_id", value: uid)
-            .order("visited_at", ascending: false)
-            .limit(1).execute().value
-        return rows.first.map { ($0.id, $0.visited_at) }
-    }
-
     /// The latest activity-log visit at the place, created if none exists —
     /// the anchor photos and dishes attach to.
     static func ensureVisit(placeID: Int64, visitedAt: Date = Date()) async throws -> UUID {
@@ -129,51 +116,6 @@ enum RatingService {
             .select("id").eq("visit_id", value: visit.id).limit(1).execute().value
         if photos.isEmpty && dishes.isEmpty {
             try await Supa.client.from("visits").delete().eq("id", value: visit.id).execute()
-        }
-    }
-
-    struct ReviewedPlace: Identifiable, Hashable, Sendable {
-        let place: PlaceSummary
-        let score: Int
-        var id: Int64 { place.id }
-    }
-
-    /// Everything the user has rated, best score first, for the profile list.
-    static func myReviews() async throws -> [ReviewedPlace] {
-        let uid = try await Supa.signInIfNeeded()
-        struct Row: Decodable {
-            struct PlaceJoin: Decodable {
-                let id: Int64
-                let name: String
-                let category: String
-                let subtype: String?
-                let address: String?
-                let lat: Double
-                let lon: Double
-            }
-            let score: Int
-            let updated_at: Date
-            let places: PlaceJoin
-        }
-        let rows: [Row] = try await Supa.client.from("ratings")
-            .select("score, updated_at, places(id, name, category, subtype, address, lat, lon)")
-            .eq("user_id", value: uid)
-            .execute().value
-        return rows.sorted {
-            $0.score != $1.score ? $0.score > $1.score : $0.updated_at > $1.updated_at
-        }.map { row in
-            ReviewedPlace(
-                place: PlaceSummary(
-                    id: row.places.id,
-                    name: row.places.name,
-                    category: PlaceCategory(rawValue: row.places.category) ?? .restaurant,
-                    subtype: row.places.subtype,
-                    address: row.places.address,
-                    coordinate: Coordinate(latitude: row.places.lat, longitude: row.places.lon),
-                    distanceMeters: nil
-                ),
-                score: row.score
-            )
         }
     }
 

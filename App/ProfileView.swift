@@ -10,7 +10,8 @@ struct ProfileView: View {
     @State private var friendHandle = ""
     @State private var incoming: [SocialService.Profile] = []
     @State private var friends: [SocialService.Profile] = []
-    @State private var reviews: [RatingService.ReviewedPlace] = []
+    @State private var myEntries: [FeedService.Entry] = []
+    @State private var myLikes: [UUID: FeedService.LikeState] = [:]
     @State private var status: String?
 
     var body: some View {
@@ -34,22 +35,19 @@ struct ProfileView: View {
                         Text(status).font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                Section("Your reviews — \(reviews.count)") {
-                    if reviews.isEmpty {
+                Section("Your reviews — \(myEntries.count)") {
+                    if myEntries.isEmpty {
                         Text("Nothing rated yet").foregroundStyle(.secondary)
                     }
-                    ForEach(reviews) { review in
-                        NavigationLink(value: review) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(review.place.name)
-                                    Text(review.place.category.rawValue.capitalized)
-                                        .font(.caption2).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text("\(review.score)").font(.title3.bold())
-                            }
+                    ForEach(myEntries) { entry in
+                        NavigationLink(value: entry) {
+                            FeedEntryRow(
+                                entry: entry,
+                                like: myLikes[entry.id] ?? FeedService.LikeState(count: 0, liked: false),
+                                onToggleLike: { toggleMyLike(entry.id) }
+                            )
                         }
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                     }
                 }
                 Section("Add friend") {
@@ -86,7 +84,7 @@ struct ProfileView: View {
             }
             .navigationTitle("Profile")
             .navigationDestination(for: PlaceSummary.self) { RestaurantView(place: $0) }
-            .navigationDestination(for: RatingService.ReviewedPlace.self) { MyReviewView(review: $0) }
+            .navigationDestination(for: FeedService.Entry.self) { VisitDetailView(entry: $0) }
         }
         .task { await reload() }
         .onChange(of: avatarItem) {
@@ -101,11 +99,21 @@ struct ProfileView: View {
         }
     }
 
-    // (own-review loader lives below the view)
+    private func toggleMyLike(_ visitID: UUID) {
+        var state = myLikes[visitID] ?? FeedService.LikeState(count: 0, liked: false)
+        state.liked.toggle()
+        state.count += state.liked ? 1 : -1
+        myLikes[visitID] = state
+        let liked = state.liked
+        Task { try? await FeedService.setVisitLike(visitID: visitID, liked: liked) }
+    }
 
     private func reload() async {
         profile = try? await SocialService.myProfile()
-        reviews = (try? await RatingService.myReviews()) ?? []
+        if let uid = try? await Supa.signInIfNeeded() {
+            myEntries = (try? await FeedService.page(before: nil, limit: 100, userID: uid)) ?? []
+            myLikes = (try? await FeedService.visitLikes(visitIDs: myEntries.map(\.id))) ?? [:]
+        }
         handle = profile?.handle ?? ""
         displayName = profile?.display_name ?? ""
         guard let uid = try? await Supa.signInIfNeeded(),
@@ -145,39 +153,5 @@ struct ProfileView: View {
     private func accept(_ requester: SocialService.Profile) async {
         try? await SocialService.accept(requester: requester.id)
         await reload()
-    }
-}
-
-
-/// The user's own review, shown through the same view friends see — where
-/// comments live — with the place name linking on to the restaurant page.
-struct MyReviewView: View {
-    let review: RatingService.ReviewedPlace
-    @State private var entry: FeedService.Entry?
-
-    var body: some View {
-        Group {
-            if let entry {
-                VisitDetailView(entry: entry)
-            } else {
-                ProgressView()
-            }
-        }
-        .task {
-            guard let profile = try? await SocialService.myProfile(),
-                  let visit = try? await RatingService.latestVisit(placeID: review.place.id)
-            else { return }
-            let photos = (try? await PhotoService.visitPhotos(visitID: visit.id)) ?? []
-            entry = FeedService.Entry(
-                id: visit.id,
-                user: profile,
-                placeID: review.place.id,
-                placeName: review.place.name,
-                category: review.place.category,
-                visitedAt: visit.visitedAt,
-                score: review.score,
-                photos: photos
-            )
-        }
     }
 }

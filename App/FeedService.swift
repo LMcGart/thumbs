@@ -32,13 +32,18 @@ enum FeedService {
         let score: Int
     }
 
-    /// One reverse-chronological page of accepted friends' visits (RLS already
-    /// limits rows to friends; own visits are excluded here).
-    static func page(before: Date?, limit: Int = 20) async throws -> [Entry] {
+    /// One reverse-chronological page of visits: accepted friends' by default
+    /// (own excluded), or a single user's when `userID` is given — the same
+    /// query powers the feed and the profile's own-review list.
+    static func page(before: Date?, limit: Int = 20, userID: UUID? = nil) async throws -> [Entry] {
         let uid = try await Supa.signInIfNeeded()
         var query = Supa.client.from("visits")
             .select("id, user_id, place_id, visited_at, places(name, category), profiles(id, handle, display_name, avatar_path), photos(id, storage_path, position)")
-            .neq("user_id", value: uid)
+        if let userID {
+            query = query.eq("user_id", value: userID)
+        } else {
+            query = query.neq("user_id", value: uid)
+        }
         if let before {
             query = query.lt("visited_at", value: before)
         }

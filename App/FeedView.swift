@@ -28,6 +28,7 @@ struct FeedView: View {
                         onToggleLike: { toggleLike(entry.id) }
                     )
                 }
+                .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                 .onAppear {
                     if entry.id == entries.last?.id { Task { await loadMore() } }
                 }
@@ -72,7 +73,7 @@ struct FeedView: View {
     }
 }
 
-private struct FeedEntryRow: View {
+struct FeedEntryRow: View {
     let entry: FeedService.Entry
     let like: FeedService.LikeState
     let onToggleLike: () -> Void
