@@ -43,6 +43,14 @@ struct SupabaseDebugView: View {
                         UserDefaults.standard.set(false, forKey: "onboardingComplete")
                         log.append("onboarding reset — relaunch to see it")
                     }
+                    Button("Sign out → new anonymous user") {
+                        run {
+                            try await Supa.client.auth.signOut()
+                            let uid = try await Supa.signInIfNeeded()
+                            userID = uid
+                            log.append("new user \(uid.uuidString.lowercased().prefix(8))… — now handle uniqueness is testable")
+                        }
+                    }
                 }
                 Section("Item 8 checks") {
                     Button("Seed feed friend (200 visits)") { run { try await seedFeedFriend() } }
