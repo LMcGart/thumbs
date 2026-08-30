@@ -34,6 +34,9 @@ struct SupabaseDebugView: View {
                     Button("Insert test visit + rating") { run { try await insertTestRating() } }
                     Button("Count ratings visible to me") { run { try await countVisible() } }
                 }
+                Section("Item 6 checks") {
+                    Button("Seed 30 test ratings") { run { try await seedThirtyRatings() } }
+                }
                 Section("Log") {
                     ForEach(log.indices.reversed(), id: \.self) { Text(log[$0]).font(.caption.monospaced()) }
                 }
@@ -72,6 +75,25 @@ struct SupabaseDebugView: View {
             .insert(RatingInsert(visit_id: visit.id, score: 7, category: "restaurant"))
             .execute()
         log.append("rated \(place.name) → visit \(visit.id.uuidString.prefix(8))")
+    }
+
+    private func seedThirtyRatings() async throws {
+        let uid = try await Supa.signInIfNeeded()
+        userID = uid
+        struct SeedPlace: Decodable { let id: Int64; let category: String }
+        let places: [SeedPlace] = try await Supa.client.from("places")
+            .select("id,category").limit(30).execute().value
+        let scores = [7, 4, 8, 6, 9, 7, 5, 8, 7, 6, 9, 3, 8, 7, 10, 6, 8, 5, 7, 9, 8, 6, 7, 8, 4, 9, 7, 6, 8, 7]
+        for (index, seedPlace) in places.enumerated() {
+            let visitedAt = Date().addingTimeInterval(-Double.random(in: 1...300) * 86_400)
+            let visit: VisitRow = try await Supa.client.from("visits")
+                .insert(VisitInsert(user_id: uid, place_id: seedPlace.id, visited_at: visitedAt, source: "manual"))
+                .select("id").single().execute().value
+            try await Supa.client.from("ratings")
+                .insert(RatingInsert(visit_id: visit.id, score: scores[index], category: seedPlace.category))
+                .execute()
+        }
+        log.append("seeded \(places.count) ratings")
     }
 
     private func countVisible() async throws {

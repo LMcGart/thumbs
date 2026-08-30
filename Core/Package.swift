@@ -11,10 +11,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "Detection", dependencies: ["Places"]),
-        .target(name: "Rating"),
+        .target(name: "Rating", dependencies: ["Places"]),
         .target(name: "Places"),
         .testTarget(name: "DetectionTests", dependencies: ["Detection", "Places"]),
-        .testTarget(name: "RatingTests", dependencies: ["Rating"]),
+        .testTarget(name: "RatingTests", dependencies: ["Rating", "Places"]),
         .testTarget(name: "PlacesTests", dependencies: ["Places"]),
     ]
 )
