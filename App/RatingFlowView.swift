@@ -180,15 +180,11 @@ struct RatingFlowView: View {
         }
     }
 
-    // Release = done, but not final: the first commit creates the visit +
-    // rating; adjusting again in the same flow updates that rating in place.
+    // Release = done, but not final: every commit upserts the one rating for
+    // this place; the first also ensures a visit exists for attachments.
     private func save(_ score: Int) async {
         do {
-            if let visitID = savedVisitID {
-                try await RatingService.updateRating(visitID: visitID, score: score, category: category)
-            } else {
-                savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category)
-            }
+            savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category)
             onSaved()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
