@@ -36,13 +36,13 @@ struct RestaurantView: View {
         }
         .navigationTitle(place.name)
         .task { await load() }
-        .sheet(isPresented: $showRatingFlow) {
-            RatingFlowView(place: place, preset: myRating) {
-                Task {
-                    myRating = try? await RatingService.myRating(placeID: place.id)
-                    photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
-                }
+        .sheet(isPresented: $showRatingFlow, onDismiss: {
+            Task {
+                myRating = try? await RatingService.myRating(placeID: place.id)
+                photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
             }
+        }) {
+            RatingFlowView(place: place, preset: myRating) {}
         }
     }
 

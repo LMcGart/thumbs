@@ -5,8 +5,12 @@ import SwiftUI
 
 struct RatingFlowView: View {
     let place: PlaceSummary
-    let preset: RatingService.MyRating?
     var onSaved: () -> Void
+    /// Captured once at presentation: the parent refreshes its rating while
+    /// this sheet is up, and a re-evaluated `preset` must not silently turn a
+    /// first rating into an "edit" (that made X keep the rating it should
+    /// have discarded).
+    @State private var original: RatingService.MyRating?
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("bandMateRotation") private var rotation = 0
@@ -25,8 +29,8 @@ struct RatingFlowView: View {
 
     init(place: PlaceSummary, preset: RatingService.MyRating? = nil, onSaved: @escaping () -> Void) {
         self.place = place
-        self.preset = preset
         self.onSaved = onSaved
+        _original = State(initialValue: preset)
         _selected = State(initialValue: preset?.score)
         _category = State(initialValue: preset?.category ?? place.category)
     }
@@ -215,9 +219,9 @@ struct RatingFlowView: View {
         // first so the undo decision sees the true state.
         await saveTask?.value
         do {
-            if let preset {
-                if savedVisitID != nil, selected != preset.score || category != preset.category {
-                    _ = try await RatingService.saveRating(placeID: place.id, score: preset.score, category: preset.category)
+            if let original {
+                if savedVisitID != nil, selected != original.score || category != original.category {
+                    _ = try await RatingService.saveRating(placeID: place.id, score: original.score, category: original.category)
                     onSaved()
                 }
             } else if savedVisitID != nil {
