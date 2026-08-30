@@ -27,3 +27,11 @@ onboarding (roadmap item 10), where confirm-or-skip is the whole interaction.
 The detection pipeline itself is built and tested (`Core/Detection`), shared by
 the Spike CLI and the app's debug screen — the widget is UI + scan scheduling +
 notifications on top of it.
+
+## Server search quality (noted 2026-08-29, during item 5)
+
+Server search is name-prefix + distance; Apple's blended results are visibly
+better ranked. Cheap upgrades when it starts to matter: `pg_trgm` for
+typo-tolerant fuzzy matching (one migration), word-level prefix matching
+("carota" finds "Via Carota"), and a friends-rated-here ranking boost once
+visit data exists.
