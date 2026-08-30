@@ -34,6 +34,8 @@ targets:
         product: Rating
       - package: Core
         product: Places
+      - package: Core
+        product: Media
       - package: Supabase
         product: Supabase
     settings:

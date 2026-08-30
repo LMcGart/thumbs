@@ -1,4 +1,5 @@
 import Places
+import PhotosUI
 import Rating
 import SwiftUI
 
@@ -15,6 +16,8 @@ struct RatingFlowView: View {
     @State private var shown: BandMates?
     @State private var savedVisitID: UUID?
     @State private var errorMessage: String?
+    @State private var pickedItems: [PhotosPickerItem] = []
+    @State private var photoStatus: String?
     @State private var dishName = ""
     @State private var dishSuggestions: [String] = []
     @State private var savedDishes: [String] = []
@@ -56,6 +59,7 @@ struct RatingFlowView: View {
                 }
 
                 if savedVisitID != nil {
+                    photoSection
                     dishSection
                 }
                 Spacer()
@@ -118,6 +122,37 @@ struct RatingFlowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 96)
+        }
+    }
+
+    private var photoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            PhotosPicker(selection: $pickedItems, maxSelectionCount: 6, matching: .images) {
+                Label("Add photos", systemImage: "photo.on.rectangle.angled")
+            }
+            if let photoStatus {
+                Text(photoStatus).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onChange(of: pickedItems) {
+            guard let visitID = savedVisitID, !pickedItems.isEmpty else { return }
+            let items = pickedItems
+            pickedItems = []
+            Task {
+                var uploaded = 0
+                for item in items {
+                    guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+                    do {
+                        try await PhotoService.attach(imageData: data, visitID: visitID)
+                        uploaded += 1
+                        photoStatus = "Uploaded \(uploaded)/\(items.count)…"
+                    } catch {
+                        photoStatus = "Upload failed: \(error.localizedDescription)"
+                        return
+                    }
+                }
+                photoStatus = "\(uploaded) photo\(uploaded == 1 ? "" : "s") added"
+            }
         }
     }
 

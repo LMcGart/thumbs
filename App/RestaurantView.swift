@@ -9,6 +9,7 @@ struct RestaurantView: View {
     @State private var myVisits: [(score: Int, date: Date)] = []
     @State private var loadedRating = false
     @State private var showRatingFlow = false
+    @State private var photos: [PhotoService.PlacePhoto] = []
 
     var body: some View {
         List {
@@ -18,6 +19,11 @@ struct RestaurantView: View {
                     .background(.quaternary, in: Capsule())
                 if let address {
                     Text(address).font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+            if !photos.isEmpty {
+                Section("Photos") {
+                    PhotoGridView(photos: photos)
                 }
             }
             Section("Your rating") {
@@ -37,7 +43,10 @@ struct RestaurantView: View {
         .task { await load() }
         .sheet(isPresented: $showRatingFlow) {
             RatingFlowView(place: place, presetScore: myVisits.first?.score) {
-                Task { myVisits = (try? await RatingService.myVisits(placeID: place.id)) ?? [] }
+                Task {
+                    myVisits = (try? await RatingService.myVisits(placeID: place.id)) ?? []
+                    photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
+                }
             }
         }
     }
@@ -52,6 +61,7 @@ struct RestaurantView: View {
             }
         }
         myVisits = (try? await RatingService.myVisits(placeID: place.id)) ?? []
+        photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
         loadedRating = true
     }
 }

@@ -74,6 +74,50 @@ check("B sees A's rating after accepting",
 check("B sees A's visit after accepting",
       len(call("GET", "/rest/v1/visits?select=id", token_b)) == 1)
 
+# Storage: A uploads a photo object under their visit; the friend B can sign
+# a URL for it, a stranger C cannot, and C cannot upload into A's visit.
+import uuid
+photo_path = f"visits/{visit['id']}/{uuid.uuid4()}/thumb.heic"
+req = urllib.request.Request(f"{URL}/storage/v1/object/photos/{photo_path}", method="POST",
+                             data=b"not-a-real-heic")
+req.add_header("apikey", KEY)
+req.add_header("Authorization", f"Bearer {token_a}")
+req.add_header("Content-Type", "image/heic")
+urllib.request.urlopen(req)
+
+c = call("POST", "/auth/v1/signup", body={})
+token_c = c["access_token"]
+
+def can_sign(token):
+    request = urllib.request.Request(f"{URL}/storage/v1/object/sign/photos/{photo_path}",
+                                     method="POST", data=json.dumps({"expiresIn": 60}).encode())
+    request.add_header("apikey", KEY)
+    request.add_header("Authorization", f"Bearer {token}")
+    request.add_header("Content-Type", "application/json")
+    try:
+        urllib.request.urlopen(request)
+        return True
+    except urllib.error.HTTPError:
+        return False
+
+check("friend B can sign a photo URL", can_sign(token_b))
+check("stranger C cannot sign a photo URL", not can_sign(token_c))
+
+def can_upload(token):
+    request = urllib.request.Request(
+        f"{URL}/storage/v1/object/photos/visits/{visit['id']}/{uuid.uuid4()}/thumb.heic",
+        method="POST", data=b"x")
+    request.add_header("apikey", KEY)
+    request.add_header("Authorization", f"Bearer {token}")
+    request.add_header("Content-Type", "image/heic")
+    try:
+        urllib.request.urlopen(request)
+        return True
+    except urllib.error.HTTPError:
+        return False
+
+check("stranger C cannot upload into A's visit", not can_upload(token_c))
+
 # B must not be able to write as A.
 request_failed = False
 try:

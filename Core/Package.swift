@@ -8,13 +8,16 @@ let package = Package(
         .library(name: "Detection", targets: ["Detection"]),
         .library(name: "Rating", targets: ["Rating"]),
         .library(name: "Places", targets: ["Places"]),
+        .library(name: "Media", targets: ["Media"]),
     ],
     targets: [
         .target(name: "Detection", dependencies: ["Places"]),
         .target(name: "Rating", dependencies: ["Places"]),
         .target(name: "Places"),
+        .target(name: "Media"),
         .testTarget(name: "DetectionTests", dependencies: ["Detection", "Places"]),
         .testTarget(name: "RatingTests", dependencies: ["Rating", "Places"]),
         .testTarget(name: "PlacesTests", dependencies: ["Places"]),
+        .testTarget(name: "MediaTests", dependencies: ["Media"]),
     ]
 )

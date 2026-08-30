@@ -37,6 +37,7 @@ docs/
 App/                   iOS app target. SwiftUI views + view models only. No business logic.
 Core/                  Swift package. All logic. Fully testable from the terminal.
   Sources/Detection/   Photo clustering, place matching, confidence
+  Sources/Media/       Image tiers, HEIC processing, storage paths
   Sources/Rating/      Score model, band-mate selection, histogram
   Sources/Places/      POI model, SQLite access, search
   Tests/               One test target per module
