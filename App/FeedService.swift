@@ -76,13 +76,14 @@ enum FeedService {
         let user_id: UUID
         let body: String
         let created_at: Date
+        let parent_id: UUID?
         let profiles: SocialService.Profile
     }
 
     static func comments(visitID: UUID) async throws -> [Comment] {
         _ = try await Supa.signInIfNeeded()
         return try await Supa.client.from("comments")
-            .select("id, user_id, body, created_at, profiles(id, handle, display_name, avatar_path)")
+            .select("id, user_id, body, created_at, parent_id, profiles(id, handle, display_name, avatar_path)")
             .eq("visit_id", value: visitID)
             .order("created_at", ascending: true)
             .execute().value
@@ -92,12 +93,13 @@ enum FeedService {
         let visit_id: UUID
         let user_id: UUID
         let body: String
+        let parent_id: UUID?
     }
 
-    static func addComment(visitID: UUID, body: String) async throws {
+    static func addComment(visitID: UUID, body: String, parentID: UUID? = nil) async throws {
         let uid = try await Supa.signInIfNeeded()
         try await Supa.client.from("comments")
-            .insert(CommentInsert(visit_id: visitID, user_id: uid, body: body))
+            .insert(CommentInsert(visit_id: visitID, user_id: uid, body: body, parent_id: parentID))
             .execute()
     }
 

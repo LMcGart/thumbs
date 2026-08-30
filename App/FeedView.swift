@@ -95,6 +95,7 @@ struct VisitDetailView: View {
     @State private var dishes: [(name: String, verdict: String)] = []
     @State private var comments: [FeedService.Comment] = []
     @State private var draft = ""
+    @State private var replyTo: FeedService.Comment?
     @State private var myID: UUID?
 
     var body: some View {
@@ -133,30 +134,25 @@ struct VisitDetailView: View {
                 }
             }
             Section("Comments") {
-                ForEach(comments) { comment in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(comment.profiles.shownName).font(.caption.bold())
-                            Text(comment.created_at.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                        Text(comment.body)
-                    }
-                    .swipeActions {
-                        if comment.user_id == myID {
-                            Button("Delete", role: .destructive) {
-                                Task {
-                                    try? await FeedService.deleteComment(id: comment.id)
-                                    comments.removeAll { $0.id == comment.id }
-                                }
-                            }
-                        }
+                ForEach(comments.filter { $0.parent_id == nil }) { comment in
+                    commentRow(comment, indented: false)
+                    ForEach(comments.filter { $0.parent_id == comment.id }) { reply in
+                        commentRow(reply, indented: true)
                     }
                 }
-                HStack {
-                    TextField("Add a comment…", text: $draft, axis: .vertical)
-                    Button("Send") { Task { await sendComment() } }
-                        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                VStack(alignment: .leading, spacing: 4) {
+                    if let replyTo {
+                        HStack(spacing: 6) {
+                            Text("Replying to \(replyTo.profiles.shownName)")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Button("Cancel") { self.replyTo = nil }.font(.caption)
+                        }
+                    }
+                    HStack {
+                        TextField(replyTo == nil ? "Add a comment…" : "Write a reply…", text: $draft, axis: .vertical)
+                        Button("Send") { Task { await sendComment() } }
+                            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
             }
         }
@@ -169,12 +165,42 @@ struct VisitDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func commentRow(_ comment: FeedService.Comment, indented: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(comment.profiles.shownName).font(.caption.bold())
+                Text(comment.created_at.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2).foregroundStyle(.secondary)
+                Spacer()
+                if !indented {
+                    Button("Reply") { replyTo = comment }
+                        .font(.caption2)
+                        .buttonStyle(.borderless)
+                }
+            }
+            Text(comment.body)
+        }
+        .padding(.leading, indented ? 24 : 0)
+        .swipeActions {
+            if comment.user_id == myID {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        try? await FeedService.deleteComment(id: comment.id)
+                        comments = (try? await FeedService.comments(visitID: entry.id)) ?? []
+                    }
+                }
+            }
+        }
+    }
+
     private func sendComment() async {
         let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         do {
-            try await FeedService.addComment(visitID: entry.id, body: body)
+            try await FeedService.addComment(visitID: entry.id, body: body, parentID: replyTo?.id)
             draft = ""
+            replyTo = nil
             comments = (try? await FeedService.comments(visitID: entry.id)) ?? comments
         } catch {}
     }
