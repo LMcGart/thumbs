@@ -133,15 +133,15 @@ struct RatingFlowView: View {
             Task { await stagePicked(items) }
         }
         .onDisappear {
-            // The review was kept: upload staged photos in the background,
-            // outliving this sheet. A discarded review uploads nothing.
+            // The review was kept: hand staged photos to the shared background
+            // uploader (which the restaurant page also renders as previews).
+            // A discarded review uploads nothing.
             guard !discarded, let visitID = savedVisitID, !staged.isEmpty else { return }
-            let uploads = staged
-            Task.detached(priority: .utility) {
-                for photo in uploads {
-                    _ = try? await PhotoService.attach(imageData: photo.data, visitID: visitID)
-                }
-            }
+            PendingPhotoUploads.shared.enqueue(
+                photos: staged.map { ($0.id, $0.data, $0.preview) },
+                placeID: place.id,
+                visitID: visitID
+            )
         }
     }
 

@@ -52,16 +52,27 @@ public enum SearchHit: Sendable, Identifiable, Hashable {
     }
 }
 
-/// Blends Apple results into server results, dropping an Apple result that is
-/// likely the same place as a server row (matching name within
-/// `duplicateRadiusMeters`). Server rows always win — they carry our IDs and
+/// Blends Apple results into server results. Duplicates collapse in two
+/// passes: server rows against each other first (Overture carries
+/// near-duplicate rows for one storefront), then Apple results against the
+/// surviving server rows. Server rows always win — they carry our IDs and
 /// everyone's rating history; the radius keeps same-name places in other
-/// cities (chains) distinct.
+/// cities (chains) distinct. Order is preserved, so the nearest of a
+/// duplicate pair survives.
 public func blendSearchResults(
     server: [PlaceSummary],
     apple: [AppleCandidate],
     duplicateRadiusMeters: Double = 150
 ) -> [SearchHit] {
+    var deduped: [PlaceSummary] = []
+    for row in server {
+        let duplicate = deduped.contains { kept in
+            placeNamesLikelyMatch(kept.name, row.name)
+                && kept.coordinate.distance(to: row.coordinate) <= duplicateRadiusMeters
+        }
+        if !duplicate { deduped.append(row) }
+    }
+    let server = deduped
     var hits: [SearchHit] = server.map { .place($0) }
     for candidate in apple {
         let duplicate = server.contains { row in

@@ -5,10 +5,25 @@ import SwiftUI
 /// only ever request `thumb` — feeds and grids have no path to `full`.
 struct PhotoGridView: View {
     let photos: [PhotoService.PlacePhoto]
+    var pending: [PendingPhotoUploads.Pending] = []
     @State private var selected: PhotoService.PlacePhoto?
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 4)], spacing: 4) {
+            ForEach(pending) { upload in
+                ZStack {
+                    if let preview = upload.preview {
+                        Image(decorative: preview, scale: 1)
+                            .resizable()
+                            .aspectRatio(1, contentMode: .fill)
+                    } else {
+                        Rectangle().fill(.quaternary)
+                    }
+                    ProgressView()
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .opacity(0.75)
+            }
             ForEach(photos) { photo in
                 TierImage(basePath: photo.storage_path, tier: .thumb)
                     .aspectRatio(1, contentMode: .fill)

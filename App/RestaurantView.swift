@@ -9,6 +9,7 @@ struct RestaurantView: View {
     @State private var loadedRating = false
     @State private var showRatingFlow = false
     @State private var photos: [PhotoService.PlacePhoto] = []
+    private var uploads: PendingPhotoUploads { .shared }
 
     var body: some View {
         List {
@@ -20,9 +21,9 @@ struct RestaurantView: View {
                     Text(address).font(.subheadline).foregroundStyle(.secondary)
                 }
             }
-            if !photos.isEmpty {
+            if !photos.isEmpty || !uploads.pending(for: place.id).isEmpty {
                 Section("Photos") {
-                    PhotoGridView(photos: photos)
+                    PhotoGridView(photos: photos, pending: uploads.pending(for: place.id))
                 }
             }
             Section("Your rating") {
@@ -36,6 +37,12 @@ struct RestaurantView: View {
         }
         .navigationTitle(place.name)
         .task { await load() }
+        .onChange(of: uploads.pending(for: place.id).count) { previous, current in
+            // An upload just landed; pull the server copy into the grid.
+            if current < previous {
+                Task { photos = (try? await PhotoService.photos(placeID: place.id)) ?? [] }
+            }
+        }
         .sheet(isPresented: $showRatingFlow, onDismiss: {
             Task {
                 myRating = try? await RatingService.myRating(placeID: place.id)

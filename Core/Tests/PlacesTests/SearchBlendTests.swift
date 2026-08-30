@@ -38,3 +38,20 @@ private func appleHit(_ name: String, at location: Coordinate = nyc) -> AppleCan
     let hits = blendSearchResults(server: [], apple: [appleHit("Sukiyabashi Jiro")])
     #expect(hits.count == 1)
 }
+
+@Test func serverSideDuplicatesCollapseKeepingTheNearest() {
+    let nearer = PlaceSummary(id: 1, name: "Uva Enoteca", category: .restaurant, subtype: nil,
+                              address: nil, coordinate: sf, distanceMeters: 40)
+    let farther = PlaceSummary(id: 2, name: "Uva Enoteca Llc", category: .restaurant, subtype: nil,
+                               address: nil, coordinate: sf, distanceMeters: 90)
+    let hits = blendSearchResults(server: [nearer, farther], apple: [])
+    #expect(hits.map(\.id) == ["place-1"])
+}
+
+@Test func sameNameServerRowsInDifferentCitiesBothSurvive() {
+    let sfRow = PlaceSummary(id: 1, name: "Tartine", category: .cafe, subtype: nil,
+                             address: nil, coordinate: sf, distanceMeters: 40)
+    let nycRow = PlaceSummary(id: 2, name: "Tartine", category: .cafe, subtype: nil,
+                              address: nil, coordinate: nyc, distanceMeters: 90)
+    #expect(blendSearchResults(server: [sfRow, nycRow], apple: []).count == 2)
+}
