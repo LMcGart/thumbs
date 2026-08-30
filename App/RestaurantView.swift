@@ -5,7 +5,7 @@ import SwiftUI
 struct RestaurantView: View {
     let place: PlaceSummary
     @State private var address: String?
-    @State private var myScore: Int?
+    @State private var myRating: RatingService.MyRating?
     @State private var loadedRating = false
     @State private var showRatingFlow = false
     @State private var photos: [PhotoService.PlacePhoto] = []
@@ -26,20 +26,20 @@ struct RestaurantView: View {
                 }
             }
             Section("Your rating") {
-                if let myScore {
-                    Text("\(myScore)/10").font(.title3.bold())
+                if let myRating {
+                    Text("\(myRating.score)/10").font(.title3.bold())
                 } else if loadedRating {
                     Text("Not rated yet").foregroundStyle(.secondary)
                 }
-                Button(myScore == nil ? "Rate" : "Edit rating") { showRatingFlow = true }
+                Button(myRating == nil ? "Rate" : "Edit rating") { showRatingFlow = true }
             }
         }
         .navigationTitle(place.name)
         .task { await load() }
         .sheet(isPresented: $showRatingFlow) {
-            RatingFlowView(place: place, presetScore: myScore) {
+            RatingFlowView(place: place, preset: myRating) {
                 Task {
-                    myScore = try? await RatingService.myRating(placeID: place.id)
+                    myRating = try? await RatingService.myRating(placeID: place.id)
                     photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
                 }
             }
@@ -55,7 +55,7 @@ struct RestaurantView: View {
                     .compactMap { $0 }.joined(separator: " ")
             }
         }
-        myScore = try? await RatingService.myRating(placeID: place.id)
+        myRating = try? await RatingService.myRating(placeID: place.id)
         photos = (try? await PhotoService.photos(placeID: place.id)) ?? []
         loadedRating = true
     }

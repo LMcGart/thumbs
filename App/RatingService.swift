@@ -103,16 +103,21 @@ enum RatingService {
         }
     }
 
+    struct MyRating {
+        let score: Int
+        let category: PlaceCategory
+    }
+
     /// The user's rating for this place, if any.
-    static func myRating(placeID: Int64) async throws -> Int? {
+    static func myRating(placeID: Int64) async throws -> MyRating? {
         let uid = try await Supa.signInIfNeeded()
-        struct Row: Decodable { let score: Int }
+        struct Row: Decodable { let score: Int; let category: String }
         let rows: [Row] = try await Supa.client.from("ratings")
-            .select("score")
+            .select("score, category")
             .eq("place_id", value: Int(placeID))
             .eq("user_id", value: uid)
             .limit(1).execute().value
-        return rows.first?.score
+        return rows.first.map { MyRating(score: $0.score, category: PlaceCategory(rawValue: $0.category) ?? .restaurant) }
     }
 
     /// Existing dish names at this place (all users), for autocomplete.

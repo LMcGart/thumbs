@@ -5,7 +5,7 @@ import SwiftUI
 
 struct RatingFlowView: View {
     let place: PlaceSummary
-    let presetScore: Int?
+    let preset: RatingService.MyRating?
     var onSaved: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -22,12 +22,12 @@ struct RatingFlowView: View {
     @State private var dishSuggestions: [String] = []
     @State private var savedDishes: [String] = []
 
-    init(place: PlaceSummary, presetScore: Int? = nil, onSaved: @escaping () -> Void) {
+    init(place: PlaceSummary, preset: RatingService.MyRating? = nil, onSaved: @escaping () -> Void) {
         self.place = place
-        self.presetScore = presetScore
+        self.preset = preset
         self.onSaved = onSaved
-        _selected = State(initialValue: presetScore)
-        _category = State(initialValue: place.category)
+        _selected = State(initialValue: preset?.score)
+        _category = State(initialValue: preset?.category ?? place.category)
     }
 
     var body: some View {
@@ -62,19 +62,24 @@ struct RatingFlowView: View {
                     dishSection
                 }
                 Spacer()
-                if savedVisitID != nil || presetScore != nil {
-                    Button("Remove rating", role: .destructive) {
-                        Task { await removeRating() }
-                    }
-                    .frame(maxWidth: .infinity)
-                }
             }
             .padding()
             .navigationTitle(place.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(savedVisitID == nil ? "Cancel" : "Done") { dismiss() }
+                ToolbarItem(placement: .cancellationAction) {
+                    // First rating: X discards the auto-committed rating.
+                    // Editing: X reverts to the score/category it opened with.
+                    Button {
+                        Task { await cancelOut() }
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                }
+                if savedVisitID != nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
             }
         }
@@ -204,13 +209,20 @@ struct RatingFlowView: View {
         }
     }
 
-    private func removeRating() async {
+    private func cancelOut() async {
         do {
-            try await RatingService.removeRating(placeID: place.id)
-            onSaved()
+            if let preset {
+                if savedVisitID != nil, selected != preset.score || category != preset.category {
+                    _ = try await RatingService.saveRating(placeID: place.id, score: preset.score, category: preset.category)
+                    onSaved()
+                }
+            } else if savedVisitID != nil {
+                try await RatingService.removeRating(placeID: place.id)
+                onSaved()
+            }
             dismiss()
         } catch {
-            errorMessage = "Couldn't remove: \(error.localizedDescription)"
+            errorMessage = "Couldn't undo: \(error.localizedDescription)"
         }
     }
 
