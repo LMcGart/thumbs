@@ -43,3 +43,22 @@ Product decision: not necessary for v1. The rule engine, drop-rules CSV
 workflow, restaurant-page widget, and calendar/notification CTA are all
 unbuilt; the `drop_rules` and `reminders` tables exist in the schema and stay
 dormant. Revisit if testers ask for it.
+
+
+## Detection in onboarding (was part of item 10) — cut 2026-08-29
+
+The full client-side stack was built and measured on-device: clustering,
+frequent-location exclusion, server place matching, candidate dedupe,
+dominant-nearest geometry, Vision meal filter, and OCR receipt/sign matching
+(`uniqueTextMatch`). At city POI density it yields ~zero certain cards, and the
+product bar for onboarding is certainty — ambiguous cards with pickers tested
+poorly, wrong cards worse.
+
+The missing ingredient is a behavioral prior (which candidate do humans
+actually pick at this GPS blob) — the thing Foursquare's snap-to-place has and
+scraped photos can't provide. **The app is building that dataset itself**:
+every logged visit is a check-in. Revisit detection (onboarding cards and/or
+the recent-visits widget) when there's enough visit data to rank candidates by
+it; licensed place data (Foursquare-class) is the buy-side alternative if
+traction justifies it. All pipeline code lives on in Core/Detection with tests,
+plus the Spike CLI and the app's debug tab.

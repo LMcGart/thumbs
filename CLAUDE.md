@@ -87,7 +87,7 @@ The Spike is a command-line tool, so its Info.plist must be embedded in the bina
 2. Slider rating flow (integers 1–10, live band-mates) with dish tagging as a text field + autocomplete (no AI labeling)
 3. Friend feed — everything friends-only; comments on visits (added 2026-08-29)
 4. ~~Recent-visits widget~~ — deferred to v1.5 after the on-device spike (2026-08-29); see docs/later.md. Detection ships only inside onboarding.
-5. Calibration onboarding: photo library → last 10 distinct places (180-day max lookback) → slide a score for each; fallback grid of well-known nearby places if photo access is declined
+5. Onboarding: handle → find friends → home. Photo detection cut from onboarding 2026-08-29 (accuracy ceiling without behavioral data); see docs/later.md
 6. ~~Reservation drops~~ — cut from v1 (2026-08-29); see docs/later.md
 
 Not in v1 (do not build): lists, map, public profiles, nearby tabs, web profile, AI dish labeling, re-rank page, rec score, up-and-coming, dish search, unlocks, reservation sharing/outcomes/crown, anything restaurant-facing.
