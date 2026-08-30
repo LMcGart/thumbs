@@ -107,6 +107,93 @@ enum FeedService {
         try await Supa.client.from("comments").delete().eq("id", value: id).execute()
     }
 
+    /// Depth-first thread order for rendering: each comment paired with its
+    /// nesting depth, children under parents, oldest first at every level.
+    static func threaded(_ comments: [Comment]) -> [(comment: Comment, depth: Int)] {
+        let children = Dictionary(grouping: comments.filter { $0.parent_id != nil }, by: { $0.parent_id! })
+        var result: [(comment: Comment, depth: Int)] = []
+        func walk(_ comment: Comment, depth: Int) {
+            result.append((comment, depth))
+            for child in (children[comment.id] ?? []).sorted(by: { $0.created_at < $1.created_at }) {
+                walk(child, depth: depth + 1)
+            }
+        }
+        for root in comments.filter({ $0.parent_id == nil }).sorted(by: { $0.created_at < $1.created_at }) {
+            walk(root, depth: 0)
+        }
+        return result
+    }
+
+    struct LikeState: Sendable {
+        var count: Int
+        var liked: Bool
+    }
+
+    private struct LikeRow: Decodable {
+        let user_id: UUID
+        let visit_id: UUID?
+        let comment_id: UUID?
+    }
+
+    /// Like counts + my-like flags for a set of visits.
+    static func visitLikes(visitIDs: [UUID]) async throws -> [UUID: LikeState] {
+        guard !visitIDs.isEmpty else { return [:] }
+        let uid = try await Supa.signInIfNeeded()
+        let rows: [LikeRow] = try await Supa.client.from("likes")
+            .select("user_id, visit_id, comment_id")
+            .in("visit_id", values: visitIDs)
+            .execute().value
+        return aggregate(rows, key: \.visit_id, me: uid)
+    }
+
+    /// Like counts + my-like flags for a set of comments.
+    static func commentLikes(commentIDs: [UUID]) async throws -> [UUID: LikeState] {
+        guard !commentIDs.isEmpty else { return [:] }
+        let uid = try await Supa.signInIfNeeded()
+        let rows: [LikeRow] = try await Supa.client.from("likes")
+            .select("user_id, visit_id, comment_id")
+            .in("comment_id", values: commentIDs)
+            .execute().value
+        return aggregate(rows, key: \.comment_id, me: uid)
+    }
+
+    private static func aggregate(_ rows: [LikeRow], key: KeyPath<LikeRow, UUID?>, me: UUID) -> [UUID: LikeState] {
+        var result: [UUID: LikeState] = [:]
+        for row in rows {
+            guard let target = row[keyPath: key] else { continue }
+            var state = result[target] ?? LikeState(count: 0, liked: false)
+            state.count += 1
+            if row.user_id == me { state.liked = true }
+            result[target] = state
+        }
+        return result
+    }
+
+    private struct VisitLikeInsert: Encodable { let user_id: UUID; let visit_id: UUID }
+    private struct CommentLikeInsert: Encodable { let user_id: UUID; let comment_id: UUID }
+
+    static func setVisitLike(visitID: UUID, liked: Bool) async throws {
+        let uid = try await Supa.signInIfNeeded()
+        if liked {
+            try await Supa.client.from("likes")
+                .insert(VisitLikeInsert(user_id: uid, visit_id: visitID)).execute()
+        } else {
+            try await Supa.client.from("likes").delete()
+                .eq("user_id", value: uid).eq("visit_id", value: visitID).execute()
+        }
+    }
+
+    static func setCommentLike(commentID: UUID, liked: Bool) async throws {
+        let uid = try await Supa.signInIfNeeded()
+        if liked {
+            try await Supa.client.from("likes")
+                .insert(CommentLikeInsert(user_id: uid, comment_id: commentID)).execute()
+        } else {
+            try await Supa.client.from("likes").delete()
+                .eq("user_id", value: uid).eq("comment_id", value: commentID).execute()
+        }
+    }
+
     /// One place as a PlaceSummary, for navigating from a review to its
     /// restaurant page.
     static func place(id: Int64) async throws -> PlaceSummary {
