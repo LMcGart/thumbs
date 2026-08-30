@@ -1,16 +1,26 @@
+import CryptoKit
 import Media
 import Places
 import PhotosUI
 import Rating
 import SwiftUI
 
+/// A photo attached during the flow but not yet uploaded: uploads start only
+/// when the review is kept, so cancelling leaves no trace.
+private struct StagedPhoto: Identifiable, Sendable {
+    let id: String
+    let data: Data
+    let preview: CGImage?
+    let date: Date?
+    let suggestionID: String?
+}
+
 struct RatingFlowView: View {
     let place: PlaceSummary
     var onSaved: () -> Void
     /// Captured once at presentation: the parent refreshes its rating while
     /// this sheet is up, and a re-evaluated `preset` must not silently turn a
-    /// first rating into an "edit" (that made X keep the rating it should
-    /// have discarded).
+    /// first rating into an "edit".
     @State private var original: RatingService.MyRating?
 
     @Environment(\.dismiss) private var dismiss
@@ -21,11 +31,11 @@ struct RatingFlowView: View {
     @State private var shown: BandMates?
     @State private var savedVisitID: UUID?
     @State private var saveTask: Task<Void, Never>?
+    @State private var discarded = false
     @State private var errorMessage: String?
     @State private var pickedItems: [PhotosPickerItem] = []
-    @State private var photoStatus: String?
     @State private var suggestions: [PhotoSuggestion] = []
-    @State private var addedSuggestions: Set<String> = []
+    @State private var staged: [StagedPhoto] = []
     @State private var visitDate = Date()
     @State private var dateEdited = false
     @State private var dateAutofilled = false
@@ -43,61 +53,48 @@ struct RatingFlowView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Menu {
-                    ForEach(PlaceCategory.allCases, id: \.self) { option in
-                        Button(option.rawValue.capitalized) { category = option }
-                    }
-                } label: {
-                    Text(category.rawValue.capitalized)
-                        .font(.caption).padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(.quaternary, in: Capsule())
-                }
-
-                DatePicker(
-                    "Visited",
-                    selection: Binding(
-                        get: { visitDate },
-                        set: { newDate in
-                            visitDate = newDate
-                            dateEdited = true
-                            if let visitID = savedVisitID {
-                                Task { try? await RatingService.setVisitDate(visitID: visitID, date: newDate) }
-                            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Menu {
+                        ForEach(PlaceCategory.allCases, id: \.self) { option in
+                            Button(option.rawValue.capitalized) { category = option }
                         }
-                    ),
-                    in: ...Date(),
-                    displayedComponents: .date
-                )
-                .font(.subheadline)
+                    } label: {
+                        Text(category.rawValue.capitalized)
+                            .font(.caption).padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+                    }
 
-                bandMateArea
-                    .frame(minHeight: 96)
+                    DatePicker("Visited", selection: dateBinding, in: ...Date(), displayedComponents: .date)
+                        .font(.subheadline)
 
-                RatingSliderView(
-                    selected: $selected,
-                    histogram: ratingHistogram(category: category, from: ratedPlaces),
-                    onCommit: { score in saveTask = Task { await save(score) } }
-                )
-                .padding(.horizontal, 4)
+                    bandMateArea
+                        .frame(minHeight: 96)
 
-                if let errorMessage {
-                    Text(errorMessage).font(.caption).foregroundStyle(.red)
+                    RatingSliderView(
+                        selected: $selected,
+                        histogram: ratingHistogram(category: category, from: ratedPlaces),
+                        onCommit: { score in saveTask = Task { await save(score) } }
+                    )
+                    .padding(.horizontal, 4)
+
+                    if let errorMessage {
+                        Text(errorMessage).font(.caption).foregroundStyle(.red)
+                    }
+
+                    if savedVisitID != nil {
+                        photoSection
+                        dishSection
+                    }
                 }
-
-                if savedVisitID != nil {
-                    photoSection
-                    dishSection
-                }
-                Spacer()
+                .padding()
             }
-            .padding()
             .navigationTitle(place.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    // First rating: X discards the auto-committed rating.
-                    // Editing: X reverts to the score/category it opened with.
+                    // First rating: X discards the rating and staged photos.
+                    // Editing: X reverts score/category and drops staged photos.
                     Button {
                         Task { await cancelOut() }
                     } label: {
@@ -115,6 +112,10 @@ struct RatingFlowView: View {
             rotation += 1
             ratedPlaces = (try? await RatingService.myRatedPlaces()) ?? []
             dishSuggestions = (try? await RatingService.dishNames(placeID: place.id)) ?? []
+            suggestions = await PhotoSuggestionService.suggestions(
+                latitude: place.coordinate.latitude,
+                longitude: place.coordinate.longitude
+            )
         }
         .task(id: selected) {
             // Swap band-mates only after the thumb rests on a stop (~150 ms)
@@ -126,6 +127,35 @@ struct RatingFlowView: View {
                 shown = bandMates(at: selected, category: category, from: ratedPlaces.filter { $0.id != place.id }, rotation: rotation)
             }
         }
+        .onChange(of: pickedItems) {
+            let items = pickedItems
+            pickedItems = []
+            Task { await stagePicked(items) }
+        }
+        .onDisappear {
+            // The review was kept: upload staged photos in the background,
+            // outliving this sheet. A discarded review uploads nothing.
+            guard !discarded, let visitID = savedVisitID, !staged.isEmpty else { return }
+            let uploads = staged
+            Task.detached(priority: .utility) {
+                for photo in uploads {
+                    _ = try? await PhotoService.attach(imageData: photo.data, visitID: visitID)
+                }
+            }
+        }
+    }
+
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { visitDate },
+            set: { newDate in
+                visitDate = newDate
+                dateEdited = true
+                if let visitID = savedVisitID {
+                    Task { try? await RatingService.setVisitDate(visitID: visitID, date: newDate) }
+                }
+            }
+        )
     }
 
     @ViewBuilder
@@ -176,13 +206,13 @@ struct RatingFlowView: View {
                                     .scaledToFill()
                                     .frame(width: 72, height: 72)
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                                if addedSuggestions.contains(suggestion.id) {
+                                if staged.contains(where: { $0.suggestionID == suggestion.id }) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.white, .green)
                                         .padding(3)
                                 }
                             }
-                            .onTapGesture { Task { await addSuggestion(suggestion) } }
+                            .onTapGesture { Task { await toggleSuggestion(suggestion) } }
                         }
                     }
                 }
@@ -190,42 +220,25 @@ struct RatingFlowView: View {
             PhotosPicker(selection: $pickedItems, maxSelectionCount: 6, matching: .images) {
                 Label("Add photos", systemImage: "photo.on.rectangle.angled")
             }
-            if let photoStatus {
-                Text(photoStatus).font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        .task {
-            suggestions = await PhotoSuggestionService.suggestions(
-                latitude: place.coordinate.latitude,
-                longitude: place.coordinate.longitude
-            )
-        }
-        .onChange(of: pickedItems) {
-            guard let visitID = savedVisitID, !pickedItems.isEmpty else { return }
-            let items = pickedItems
-            pickedItems = []
-            Task {
-                var uploaded = 0
-                var skipped = 0
-                for item in items {
-                    guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
-                    do {
-                        switch try await PhotoService.attach(imageData: data, visitID: visitID) {
-                        case .uploaded:
-                            uploaded += 1
-                            photoStatus = "Uploaded \(uploaded)/\(items.count)…"
-                        case .duplicate:
-                            skipped += 1
+            if !staged.isEmpty {
+                Text("\(staged.count) photo\(staged.count == 1 ? "" : "s") attached — uploads when you're done (tap to remove)")
+                    .font(.caption2).foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(staged) { photo in
+                            Group {
+                                if let preview = photo.preview {
+                                    Image(decorative: preview, scale: 1).resizable().scaledToFill()
+                                } else {
+                                    Rectangle().fill(.quaternary)
+                                }
+                            }
+                            .frame(width: 56, height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .onTapGesture { staged.removeAll { $0.id == photo.id } }
                         }
-                        await autofillDate(captureDate(from: data))
-                    } catch {
-                        photoStatus = "Upload failed: \(error.localizedDescription)"
-                        return
                     }
                 }
-                var parts = ["\(uploaded) photo\(uploaded == 1 ? "" : "s") added"]
-                if skipped > 0 { parts.append("\(skipped) already added") }
-                photoStatus = parts.joined(separator: " · ")
             }
         }
     }
@@ -255,41 +268,57 @@ struct RatingFlowView: View {
         }
     }
 
+    private func toggleSuggestion(_ suggestion: PhotoSuggestion) async {
+        if let index = staged.firstIndex(where: { $0.suggestionID == suggestion.id }) {
+            staged.remove(at: index)
+            return
+        }
+        guard let data = await PhotoSuggestionService.imageData(assetID: suggestion.id) else {
+            errorMessage = "Couldn't load that photo"
+            return
+        }
+        stage(data: data, preview: suggestion.image, date: suggestion.date, suggestionID: suggestion.id)
+    }
+
+    private func stagePicked(_ items: [PhotosPickerItem]) async {
+        for item in items {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let preview = downsampledImage(from: data, maxEdge: 240)
+            stage(data: data, preview: preview, date: captureDate(from: data), suggestionID: nil)
+        }
+    }
+
+    private func stage(data: Data, preview: CGImage?, date: Date?, suggestionID: String?) {
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        guard !staged.contains(where: { $0.id == hash }) else { return }
+        staged.append(StagedPhoto(id: hash, data: data, preview: preview, date: date, suggestionID: suggestionID))
+        autofillDate(date ?? captureDate(from: data))
+    }
+
+    /// First staged photo with a capture date sets the visit date, unless the
+    /// user already chose one by hand.
+    private func autofillDate(_ date: Date?) {
+        guard let date, !dateEdited, !dateAutofilled else { return }
+        dateAutofilled = true
+        visitDate = date
+        if let visitID = savedVisitID {
+            Task { try? await RatingService.setVisitDate(visitID: visitID, date: date) }
+        }
+    }
+
     // Release = done, but not final: every commit upserts the one rating for
     // this place; the first also ensures a visit exists for attachments.
     private func save(_ score: Int) async {
         do {
+            let firstSave = savedVisitID == nil
             savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category, visitedAt: visitDate)
+            if firstSave, dateEdited || dateAutofilled, let visitID = savedVisitID {
+                // The visit may predate this flow; make its date match the picker.
+                try? await RatingService.setVisitDate(visitID: visitID, date: visitDate)
+            }
             onSaved()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
-        }
-    }
-
-    /// First attached photo with a capture date sets the visit date, unless
-    /// the user already chose one by hand.
-    private func autofillDate(_ date: Date?) async {
-        guard let date, !dateEdited, !dateAutofilled, let visitID = savedVisitID else { return }
-        dateAutofilled = true
-        visitDate = date
-        try? await RatingService.setVisitDate(visitID: visitID, date: date)
-    }
-
-    private func addSuggestion(_ suggestion: PhotoSuggestion) async {
-        guard let visitID = savedVisitID, !addedSuggestions.contains(suggestion.id) else { return }
-        guard let data = await PhotoSuggestionService.imageData(assetID: suggestion.id) else {
-            photoStatus = "Couldn't load that photo"
-            return
-        }
-        do {
-            switch try await PhotoService.attach(imageData: data, visitID: visitID) {
-            case .uploaded: photoStatus = "Added"
-            case .duplicate: photoStatus = "Already added"
-            }
-            addedSuggestions.insert(suggestion.id)
-            await autofillDate(suggestion.date ?? captureDate(from: data))
-        } catch {
-            photoStatus = "Upload failed: \(error.localizedDescription)"
         }
     }
 
@@ -297,6 +326,8 @@ struct RatingFlowView: View {
         // A commit fired by the same gesture may still be in flight; settle it
         // first so the undo decision sees the true state.
         await saveTask?.value
+        discarded = true
+        staged = []
         do {
             if let original {
                 if savedVisitID != nil, selected != original.score || category != original.category {
