@@ -25,6 +25,13 @@ struct OnboardingView: View {
             }
         }
         .interactiveDismissDisabled()
+        .task {
+            // An account that already has a handle has onboarded before —
+            // the local flag may just be missing (reinstall, new device).
+            if let profile = try? await SocialService.myProfile(), profile.handle != nil {
+                complete = true
+            }
+        }
     }
 
     private var welcome: some View {
