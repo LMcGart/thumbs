@@ -139,18 +139,25 @@ struct RatingFlowView: View {
             pickedItems = []
             Task {
                 var uploaded = 0
+                var skipped = 0
                 for item in items {
                     guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
                     do {
-                        try await PhotoService.attach(imageData: data, visitID: visitID)
-                        uploaded += 1
-                        photoStatus = "Uploaded \(uploaded)/\(items.count)…"
+                        switch try await PhotoService.attach(imageData: data, visitID: visitID) {
+                        case .uploaded:
+                            uploaded += 1
+                            photoStatus = "Uploaded \(uploaded)/\(items.count)…"
+                        case .duplicate:
+                            skipped += 1
+                        }
                     } catch {
                         photoStatus = "Upload failed: \(error.localizedDescription)"
                         return
                     }
                 }
-                photoStatus = "\(uploaded) photo\(uploaded == 1 ? "" : "s") added"
+                var parts = ["\(uploaded) photo\(uploaded == 1 ? "" : "s") added"]
+                if skipped > 0 { parts.append("\(skipped) already added") }
+                photoStatus = parts.joined(separator: " · ")
             }
         }
     }
