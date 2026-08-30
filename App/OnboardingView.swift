@@ -45,6 +45,7 @@ struct OnboardingView: View {
         Form {
             Section("What should friends see?") {
                 TextField("Display name", text: $displayName)
+                    .textInputAutocapitalization(.never)
                 TextField("handle (for friend requests)", text: $handle)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()

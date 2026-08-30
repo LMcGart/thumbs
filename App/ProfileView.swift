@@ -24,6 +24,7 @@ struct ProfileView: View {
                         }
                         VStack(alignment: .leading) {
                             TextField("Display name", text: $displayName)
+                                .textInputAutocapitalization(.never)
                             TextField("handle", text: $handle)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
