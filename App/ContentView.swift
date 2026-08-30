@@ -5,6 +5,8 @@ struct ContentView: View {
         TabView {
             SearchHomeView()
                 .tabItem { Label("Home", systemImage: "magnifyingglass") }
+            ProfileView()
+                .tabItem { Label("Profile", systemImage: "person.circle") }
             // Dev-only tabs below; removed before TestFlight (item 12).
             DetectionDebugView()
                 .tabItem { Label("Detection", systemImage: "camera.metering.spot") }

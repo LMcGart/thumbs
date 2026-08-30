@@ -8,7 +8,27 @@ struct SearchHomeView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            List {
+            Group {
+                if query.isEmpty {
+                    FeedView()
+                } else {
+                    resultsList
+                }
+            }
+            .searchable(text: $query, prompt: "Restaurant, cafe, bar…")
+            .task(id: query) {
+                // Debounce; .task(id:) cancels the previous search on each keystroke.
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                await model.search(query)
+            }
+            .navigationTitle("Thumbs")
+            .navigationDestination(for: PlaceSummary.self) { RestaurantView(place: $0) }
+        }
+    }
+
+    private var resultsList: some View {
+        List {
                 if let message = model.errorMessage {
                     Text(message).foregroundStyle(.red)
                 }
@@ -38,16 +58,6 @@ struct SearchHomeView: View {
                 if model.hits.isEmpty && query.count >= 2 && !model.searching {
                     Text("No matches.").foregroundStyle(.secondary)
                 }
-            }
-            .searchable(text: $query, prompt: "Restaurant, cafe, bar…")
-            .task(id: query) {
-                // Debounce; .task(id:) cancels the previous search on each keystroke.
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                await model.search(query)
-            }
-            .navigationTitle("Thumbs")
-            .navigationDestination(for: PlaceSummary.self) { RestaurantView(place: $0) }
         }
     }
 }

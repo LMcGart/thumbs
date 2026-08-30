@@ -1,0 +1,83 @@
+import Foundation
+import Places
+import Supabase
+
+enum FeedService {
+    struct Entry: Identifiable, Sendable {
+        let id: UUID
+        let user: SocialService.Profile
+        let placeID: Int64
+        let placeName: String
+        let category: PlaceCategory
+        let visitedAt: Date
+        let score: Int?
+        let photos: [PhotoService.PlacePhoto]
+    }
+
+    private struct VisitRow: Decodable {
+        struct PlaceJoin: Decodable { let name: String; let category: String }
+        struct PhotoJoin: Decodable { let id: UUID; let storage_path: String; let position: Int }
+        let id: UUID
+        let user_id: UUID
+        let place_id: Int64
+        let visited_at: Date
+        let places: PlaceJoin
+        let profiles: SocialService.Profile
+        let photos: [PhotoJoin]
+    }
+
+    private struct RatingRow: Decodable {
+        let user_id: UUID
+        let place_id: Int64
+        let score: Int
+    }
+
+    /// One reverse-chronological page of accepted friends' visits (RLS already
+    /// limits rows to friends; own visits are excluded here).
+    static func page(before: Date?, limit: Int = 20) async throws -> [Entry] {
+        let uid = try await Supa.signInIfNeeded()
+        var query = Supa.client.from("visits")
+            .select("id, user_id, place_id, visited_at, places(name, category), profiles(id, handle, display_name, avatar_path), photos(id, storage_path, position)")
+            .neq("user_id", value: uid)
+        if let before {
+            query = query.lt("visited_at", value: before)
+        }
+        let rows: [VisitRow] = try await query
+            .order("visited_at", ascending: false)
+            .limit(limit)
+            .execute().value
+        guard !rows.isEmpty else { return [] }
+
+        let ratings: [RatingRow] = try await Supa.client.from("ratings")
+            .select("user_id, place_id, score")
+            .in("user_id", values: Array(Set(rows.map(\.user_id))))
+            .in("place_id", values: Array(Set(rows.map { Int($0.place_id) })))
+            .execute().value
+        let scoreByUserPlace = Dictionary(uniqueKeysWithValues: ratings.map { ("\($0.user_id)-\($0.place_id)", $0.score) })
+
+        return rows.map { row in
+            Entry(
+                id: row.id,
+                user: row.profiles,
+                placeID: row.place_id,
+                placeName: row.places.name,
+                category: PlaceCategory(rawValue: row.places.category) ?? .restaurant,
+                visitedAt: row.visited_at,
+                score: scoreByUserPlace["\(row.user_id)-\(row.place_id)"],
+                photos: row.photos
+                    .sorted { $0.position != $1.position ? $0.position < $1.position : $0.id.uuidString < $1.id.uuidString }
+                    .map { PhotoService.PlacePhoto(id: $0.id, storage_path: $0.storage_path) }
+            )
+        }
+    }
+
+    /// Dishes on one visit, for the detail view.
+    static func dishes(visitID: UUID) async throws -> [(name: String, verdict: String)] {
+        struct Row: Decodable { let dish_name: String; let verdict: String }
+        let rows: [Row] = try await Supa.client.from("dish_ratings")
+            .select("dish_name, verdict")
+            .eq("visit_id", value: visitID)
+            .execute().value
+        return rows.map { ($0.dish_name, $0.verdict) }
+    }
+}

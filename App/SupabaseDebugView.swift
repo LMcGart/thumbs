@@ -38,6 +38,9 @@ struct SupabaseDebugView: View {
                 Section("Item 6 checks") {
                     Button("Seed 30 test ratings") { run { try await seedThirtyRatings() } }
                 }
+                Section("Item 8 checks") {
+                    Button("Seed feed friend (200 visits)") { run { try await seedFeedFriend() } }
+                }
                 Section("Log") {
                     ForEach(log.indices.reversed(), id: \.self) { Text(log[$0]).font(.caption.monospaced()) }
                 }
@@ -95,6 +98,87 @@ struct SupabaseDebugView: View {
                 .execute()
         }
         log.append("seeded \(places.count) ratings")
+    }
+
+    /// Creates a second anonymous user with 200 rated visits and an accepted
+    /// friendship with the current user — feed content plus the 200-row
+    /// scroll-smoothness check, without needing a second device.
+    private func seedFeedFriend() async throws {
+        let uid = try await Supa.signInIfNeeded()
+        userID = uid
+        guard let urlString = Bundle.main.object(forInfoDictionaryKey: "SupabaseURL") as? String,
+              let baseURL = URL(string: urlString),
+              let anonKey = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String
+        else { throw URLError(.badURL) }
+
+        func rest(_ path: String, method: String, token: String, json: Any) async throws {
+            var request = URLRequest(url: baseURL.appending(path: path))
+            request.httpMethod = method
+            request.setValue(anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: json)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                throw NSError(domain: "seed", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: String(data: data, encoding: .utf8) ?? "request failed",
+                ])
+            }
+        }
+
+        // New anonymous user B.
+        var signup = URLRequest(url: baseURL.appending(path: "auth/v1/signup"))
+        signup.httpMethod = "POST"
+        signup.setValue(anonKey, forHTTPHeaderField: "apikey")
+        signup.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        signup.httpBody = Data("{}".utf8)
+        let (signupData, _) = try await URLSession.shared.data(for: signup)
+        guard let payload = try JSONSerialization.jsonObject(with: signupData) as? [String: Any],
+              let tokenB = payload["access_token"] as? String,
+              let userB = (payload["user"] as? [String: Any])?["id"] as? String
+        else { throw URLError(.cannotParseResponse) }
+
+        let suffix = String(UUID().uuidString.prefix(4)).lowercased()
+        try await rest("rest/v1/profiles?id=eq.\(userB)", method: "PATCH", token: tokenB,
+                       json: ["handle": "feedbot_\(suffix)", "display_name": "Feed Bot"])
+
+        // Friendship: current user requests, B accepts.
+        try await Supa.client.from("friendships")
+            .insert(FriendRequestInsert(requester: uid, addressee: UUID(uuidString: userB)!, status: "requested"))
+            .execute()
+        try await rest("rest/v1/friendships?requester=eq.\(uid.uuidString)&addressee=eq.\(userB)",
+                       method: "PATCH", token: tokenB, json: ["status": "accepted"])
+
+        // 200 visits + ratings for B, spread over the last year.
+        struct SeedPlace: Decodable { let id: Int64; let category: String }
+        let places: [SeedPlace] = try await Supa.client.from("places")
+            .select("id,category").limit(200).execute().value
+        let formatter = ISO8601DateFormatter()
+        let visits: [[String: Any]] = places.enumerated().map { index, place in
+            [
+                "user_id": userB,
+                "place_id": place.id,
+                "visited_at": formatter.string(from: Date().addingTimeInterval(-Double(index) * 40_000 - Double.random(in: 0...30_000))),
+                "source": "manual",
+            ]
+        }
+        try await rest("rest/v1/visits", method: "POST", token: tokenB, json: visits)
+        let ratings: [[String: Any]] = places.enumerated().map { index, place in
+            [
+                "user_id": userB,
+                "place_id": place.id,
+                "score": [4, 5, 6, 6, 7, 7, 7, 8, 8, 9][index % 10],
+                "category": place.category,
+            ]
+        }
+        try await rest("rest/v1/ratings?on_conflict=user_id,place_id", method: "POST", token: tokenB, json: ratings)
+        log.append("feedbot_\(suffix) friended you with \(places.count) visits — check Home")
+    }
+
+    private struct FriendRequestInsert: Encodable {
+        let requester: UUID
+        let addressee: UUID
+        let status: String
     }
 
     private func countVisible() async throws {
