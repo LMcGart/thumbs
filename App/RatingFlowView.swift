@@ -1,3 +1,4 @@
+import Media
 import Places
 import PhotosUI
 import Rating
@@ -25,6 +26,9 @@ struct RatingFlowView: View {
     @State private var photoStatus: String?
     @State private var suggestions: [PhotoSuggestion] = []
     @State private var addedSuggestions: Set<String> = []
+    @State private var visitDate = Date()
+    @State private var dateEdited = false
+    @State private var dateAutofilled = false
     @State private var dishName = ""
     @State private var dishSuggestions: [String] = []
     @State private var savedDishes: [String] = []
@@ -49,6 +53,23 @@ struct RatingFlowView: View {
                         .font(.caption).padding(.horizontal, 10).padding(.vertical, 4)
                         .background(.quaternary, in: Capsule())
                 }
+
+                DatePicker(
+                    "Visited",
+                    selection: Binding(
+                        get: { visitDate },
+                        set: { newDate in
+                            visitDate = newDate
+                            dateEdited = true
+                            if let visitID = savedVisitID {
+                                Task { try? await RatingService.setVisitDate(visitID: visitID, date: newDate) }
+                            }
+                        }
+                    ),
+                    in: ...Date(),
+                    displayedComponents: .date
+                )
+                .font(.subheadline)
 
                 bandMateArea
                     .frame(minHeight: 96)
@@ -196,6 +217,7 @@ struct RatingFlowView: View {
                         case .duplicate:
                             skipped += 1
                         }
+                        await autofillDate(captureDate(from: data))
                     } catch {
                         photoStatus = "Upload failed: \(error.localizedDescription)"
                         return
@@ -237,11 +259,20 @@ struct RatingFlowView: View {
     // this place; the first also ensures a visit exists for attachments.
     private func save(_ score: Int) async {
         do {
-            savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category)
+            savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category, visitedAt: visitDate)
             onSaved()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
         }
+    }
+
+    /// First attached photo with a capture date sets the visit date, unless
+    /// the user already chose one by hand.
+    private func autofillDate(_ date: Date?) async {
+        guard let date, !dateEdited, !dateAutofilled, let visitID = savedVisitID else { return }
+        dateAutofilled = true
+        visitDate = date
+        try? await RatingService.setVisitDate(visitID: visitID, date: date)
     }
 
     private func addSuggestion(_ suggestion: PhotoSuggestion) async {
@@ -256,6 +287,7 @@ struct RatingFlowView: View {
             case .duplicate: photoStatus = "Already added"
             }
             addedSuggestions.insert(suggestion.id)
+            await autofillDate(suggestion.date ?? captureDate(from: data))
         } catch {
             photoStatus = "Upload failed: \(error.localizedDescription)"
         }

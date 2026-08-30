@@ -5,6 +5,7 @@ import Photos
 struct PhotoSuggestion: Sendable, Identifiable {
     let id: String
     let image: CGImage
+    let date: Date?
 }
 
 /// Finds library photos taken near a coordinate — the "you were here, want
@@ -33,7 +34,7 @@ enum PhotoSuggestionService {
                       location.distance(from: target) <= radiusMeters
                 else { return }
                 if let image = loadThumb(asset) {
-                    results.append(PhotoSuggestion(id: asset.localIdentifier, image: image))
+                    results.append(PhotoSuggestion(id: asset.localIdentifier, image: image, date: asset.creationDate))
                 }
                 if results.count >= limit { stop.pointee = true }
             }

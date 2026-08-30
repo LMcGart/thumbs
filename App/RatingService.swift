@@ -57,7 +57,7 @@ enum RatingService {
     /// Upserts the user's one rating for the place, ensures a visit exists as
     /// the activity-log entry (created only if none), and returns that visit's
     /// id so photos and dishes have somewhere to attach.
-    static func saveRating(placeID: Int64, score: Int, category: PlaceCategory) async throws -> UUID {
+    static func saveRating(placeID: Int64, score: Int, category: PlaceCategory, visitedAt: Date = Date()) async throws -> UUID {
         let uid = try await Supa.signInIfNeeded()
         try await Supa.client.from("ratings")
             .upsert(
@@ -73,9 +73,18 @@ enum RatingService {
             .limit(1).execute().value
         if let visit = existing.first { return visit.id }
         let visit: VisitRow = try await Supa.client.from("visits")
-            .insert(VisitInsert(user_id: uid, place_id: placeID, visited_at: Date(), source: "manual"))
+            .insert(VisitInsert(user_id: uid, place_id: placeID, visited_at: visitedAt, source: "manual"))
             .select("id").single().execute().value
         return visit.id
+    }
+
+    private struct VisitDateUpdate: Encodable { let visited_at: Date }
+
+    static func setVisitDate(visitID: UUID, date: Date) async throws {
+        try await Supa.client.from("visits")
+            .update(VisitDateUpdate(visited_at: date))
+            .eq("id", value: visitID)
+            .execute()
     }
 
     /// Deletes the user's rating for the place, and the auto-created
