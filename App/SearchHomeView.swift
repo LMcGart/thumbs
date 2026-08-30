@@ -12,6 +12,12 @@ struct SearchHomeView: View {
                 if let message = model.errorMessage {
                     Text(message).foregroundStyle(.red)
                 }
+                if model.searching && model.hits.isEmpty {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Searching…").foregroundStyle(.secondary)
+                    }
+                }
                 ForEach(model.hits) { hit in
                     switch hit {
                     case .place(let place):

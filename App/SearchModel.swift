@@ -34,8 +34,9 @@ final class SearchModel {
 
     func search(_ rawQuery: String) async {
         let query = rawQuery.trimmingCharacters(in: .whitespaces)
-        guard query.count >= 2 else { hits = []; return }
+        guard query.count >= 2 else { hits = []; errorMessage = nil; return }
         searching = true
+        errorMessage = nil
         defer { searching = false }
         do {
             _ = try await Supa.signInIfNeeded()
@@ -59,7 +60,10 @@ final class SearchModel {
             hits = blendSearchResults(server: server, apple: apple)
             errorMessage = nil
         } catch is CancellationError {
+            // A newer keystroke superseded this search; not an error.
+        } catch let urlError as URLError where urlError.code == .cancelled {
         } catch {
+            guard !Task.isCancelled else { return }
             errorMessage = "Search failed: \(error.localizedDescription)"
         }
     }
