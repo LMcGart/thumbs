@@ -70,3 +70,21 @@ private func rated(_ id: Int64, _ name: String, score: Int, visits: Int = 1, las
     #expect(counts[1] == 1)
     #expect(counts.reduce(0, +) == 3)
 }
+
+@Test func emptyBandAtTenFallsBackDownwardOnly() {
+    let mates = bandMates(at: 10, category: .restaurant, from: [rated(1, "Nine", score: 9)])
+    #expect(mates.emptyLabel == "no 10s yet")
+    #expect(mates.groups.map(\.label) == ["your 9s"])
+}
+
+@Test func emptyBandAtOneFallsBackUpwardOnly() {
+    let mates = bandMates(at: 1, category: .restaurant, from: [rated(1, "Three", score: 3)])
+    #expect(mates.emptyLabel == "no 1s yet")
+    #expect(mates.groups.map(\.label) == ["your 3s"])
+}
+
+@Test func emptyBandWithNoRatingsAtAllShowsOnlyEmptyLabel() {
+    let mates = bandMates(at: 5, category: .bar, from: [])
+    #expect(mates.emptyLabel == "no 5s yet")
+    #expect(mates.groups.isEmpty)
+}

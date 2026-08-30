@@ -55,7 +55,7 @@ public func bandMates(
         return BandMates(groups: [BandMateGroup(score: score, label: nil, places: rotated(band, rotation: rotation, limit: limit))], emptyLabel: nil)
     }
     var groups: [BandMateGroup] = []
-    if let above = ((score + 1)...10).first(where: { stop in inCategory.contains { $0.score == stop } }) {
+    if score < 10, let above = ((score + 1)...10).first(where: { stop in inCategory.contains { $0.score == stop } }) {
         let places = rotated(prioritized(inCategory.filter { $0.score == above }), rotation: rotation, limit: limit)
         groups.append(BandMateGroup(score: above, label: "your \(above)s", places: places))
     }
