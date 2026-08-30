@@ -50,6 +50,19 @@ public func checkFood(assetID: String) async -> FoodCheckResult {
     }
 }
 
+/// Text recognized in one photo (receipts, menus, signs), for candidate-name
+/// matching. Empty on any failure — absence of text decides nothing.
+public func recognizedText(assetID: String) async -> [String] {
+    guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [assetID], options: nil).firstObject else {
+        return []
+    }
+    guard case .success(let cgImage) = await loadCGImage(asset) else { return [] }
+    var request = RecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    guard let observations = try? await request.perform(on: cgImage) else { return [] }
+    return observations.compactMap { $0.topCandidates(1).first?.string }
+}
+
 private enum ImageLoad {
     case success(CGImage)
     case failure(String)

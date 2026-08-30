@@ -34,10 +34,12 @@ enum OnboardingService {
     }
 
     /// The user's last `limit` distinct places from photo metadata — sure-tier
-    /// only (product decision 2026-08-29): a card must have exactly one
-    /// candidate after dedupe, at least two photos, and a meal signal. No
-    /// disambiguation is ever shown; fewer correct cards beat more doubtful
-    /// ones. Returns [] when access is declined or nothing qualifies.
+    /// only, no disambiguation ever shown. A cluster becomes a card when the
+    /// place is certain by any of: sole candidate in range, clearly dominant
+    /// nearest (≤35 m and 2.5× closer than the runner-up) — both with a meal
+    /// signal and ≥2 photos — or a unique OCR text match (a receipt, menu, or
+    /// sign naming exactly one candidate), which stands alone. Returns []
+    /// when access is declined or nothing qualifies.
     @MainActor
     static func recentPlaces(limit: Int = 10, lookbackDays: Int = 180) async -> [DetectedPlace] {
         guard let samples = try? await fetchPhotoSamples(days: lookbackDays) else { return [] }
@@ -63,8 +65,24 @@ enum OnboardingService {
                     distanceMeters: row.distance_meters
                 )
             })
-            guard ranked.count == 1, cluster.photos.count >= 2 else { continue }
-            let summaries = ranked.prefix(3).map { candidate in
+            var chosenIndex: Int?
+            if ranked.count == 1 {
+                if cluster.photos.count >= 2, await looksLikeMeal(cluster) { chosenIndex = 0 }
+            } else if ranked[0].distanceMeters <= 35, ranked[1].distanceMeters >= ranked[0].distanceMeters * 2.5 {
+                if cluster.photos.count >= 2, await looksLikeMeal(cluster) { chosenIndex = 0 }
+            }
+            if chosenIndex == nil {
+                var strings: [String] = []
+                for photo in cluster.photos.prefix(3) {
+                    strings += await recognizedText(assetID: photo.id)
+                }
+                chosenIndex = uniqueTextMatch(
+                    candidateNames: ranked.map(\.place.name),
+                    recognizedStrings: strings
+                )
+            }
+            guard let chosenIndex else { continue }
+            let summaries = [ranked[chosenIndex]].map { candidate in
                 (
                     place: PlaceSummary(
                         id: candidate.place.id, name: candidate.place.name,
@@ -76,7 +94,6 @@ enum OnboardingService {
                 )
             }
             guard let top = summaries.first, !seenPlaces.contains(top.place.id) else { continue }
-            guard await looksLikeMeal(cluster) else { continue }
             seenPlaces.insert(top.place.id)
             results.append(DetectedPlace(
                 id: UUID(),

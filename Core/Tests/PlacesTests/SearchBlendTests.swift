@@ -55,3 +55,27 @@ private func appleHit(_ name: String, at location: Coordinate = nyc) -> AppleCan
                               address: nil, coordinate: nyc, distanceMeters: 90)
     #expect(blendSearchResults(server: [sfRow, nycRow], apple: []).count == 2)
 }
+
+@Test func receiptTextIdentifiesTheOneMatchingCandidate() {
+    let index = uniqueTextMatch(
+        candidateNames: ["Uva Enoteca", "Maman", "Souvla"],
+        recognizedStrings: ["UVA ENOTECA", "568 Haight St", "TOTAL $84.20"]
+    )
+    #expect(index == 0)
+}
+
+@Test func textMatchingTwoCandidatesDecidesNothing() {
+    let index = uniqueTextMatch(
+        candidateNames: ["Blue Bottle Coffee", "Souvla"],
+        recognizedStrings: ["blue bottle coffee next to souvla"]
+    )
+    #expect(index == nil)
+}
+
+@Test func genericShortNamesNeverMatch() {
+    #expect(uniqueTextMatch(candidateNames: ["Bar"], recognizedStrings: ["the bar was great"]) == nil)
+}
+
+@Test func noTextNoMatch() {
+    #expect(uniqueTextMatch(candidateNames: ["Uva Enoteca"], recognizedStrings: []) == nil)
+}
