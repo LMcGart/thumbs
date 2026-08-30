@@ -60,6 +60,18 @@ enum RatingService {
         return visit.id
     }
 
+    private struct RatingUpdate: Encodable {
+        let score: Int
+        let category: String
+    }
+
+    static func updateRating(visitID: UUID, score: Int, category: PlaceCategory) async throws {
+        try await Supa.client.from("ratings")
+            .update(RatingUpdate(score: score, category: category.rawValue))
+            .eq("visit_id", value: visitID)
+            .execute()
+    }
+
     /// My rating history at one place, for standing + revisit preset.
     static func myVisits(placeID: Int64) async throws -> [(score: Int, date: Date)] {
         let uid = try await Supa.signInIfNeeded()

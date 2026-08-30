@@ -6,7 +6,6 @@ import SwiftUI
 struct RatingSliderView: View {
     @Binding var selected: Int?
     let histogram: [Int]
-    let enabled: Bool
     let onCommit: (Int) -> Void
 
     var body: some View {
@@ -37,11 +36,9 @@ struct RatingSliderView: View {
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            guard enabled else { return }
                             selected = stop(at: value.location.x, in: width)
                         }
                         .onEnded { value in
-                            guard enabled else { return }
                             onCommit(stop(at: value.location.x, in: width))
                         }
                 )
@@ -54,7 +51,6 @@ struct RatingSliderView: View {
                             .frame(maxWidth: .infinity)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                guard enabled else { return }
                                 selected = number
                                 onCommit(number)
                             }

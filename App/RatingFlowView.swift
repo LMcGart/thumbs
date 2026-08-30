@@ -49,7 +49,6 @@ struct RatingFlowView: View {
                 RatingSliderView(
                     selected: $selected,
                     histogram: ratingHistogram(category: category, from: ratedPlaces),
-                    enabled: savedVisitID == nil,
                     onCommit: { score in Task { await save(score) } }
                 )
                 .padding(.horizontal, 4)
@@ -181,10 +180,15 @@ struct RatingFlowView: View {
         }
     }
 
+    // Release = done, but not final: the first commit creates the visit +
+    // rating; adjusting again in the same flow updates that rating in place.
     private func save(_ score: Int) async {
-        guard savedVisitID == nil else { return }
         do {
-            savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category)
+            if let visitID = savedVisitID {
+                try await RatingService.updateRating(visitID: visitID, score: score, category: category)
+            } else {
+                savedVisitID = try await RatingService.saveRating(placeID: place.id, score: score, category: category)
+            }
             onSaved()
         } catch {
             errorMessage = "Couldn't save: \(error.localizedDescription)"
